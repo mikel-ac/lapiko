@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Lapiko</title>
+<meta name="theme-color" content="#F4EDDF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -537,7 +541,7 @@ const DB={
   load(){if(!this.ok)return null;try{const r=localStorage.getItem('lapiko_v1');return r?JSON.parse(r):null}catch(e){return null}},
   save(o){if(!this.ok)return;try{localStorage.setItem('lapiko_v1',JSON.stringify(o))}catch(e){}}
 };
-function persist(){DB.save({recipes,shopping,logSeq,idSeq})}
+function persist(){DB.save({recipes,shopping,logSeq,idSeq});if(Cloud.on)Cloud.sync()}
 function loadState(){
   const s=DB.load();
   if(s&&s.recipes&&s.recipes.length){
@@ -821,8 +825,8 @@ function renderAccount(){
     <div class="page-head"><div class="kicker">Ajustes</div><h2>Mi cuenta</h2></div>
     <div class="acct-card">
       <div class="acct-av"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
-      <div class="acct-info"><div class="acct-n">Sesión iniciada (demo)</div><div class="acct-e">tu-correo@ejemplo.com</div></div>
-      <button class="btn btn-ghost" onclick="go('login')">Cerrar sesión</button>
+      <div class="acct-info"><div class="acct-n">${Cloud.on?'Sesión iniciada':'Solo en este dispositivo'}</div><div class="acct-e">${Cloud.on?esc(Cloud.email||''):'Sin sincronizar — inicia sesión para sincronizar'}</div></div>
+      <button class="btn btn-ghost" onclick="${Cloud.on?'Cloud.signOut()':"go('login')"}">${Cloud.on?'Cerrar sesión':'Iniciar sesión'}</button>
     </div>
     <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num" style="background:var(--herb)">#</span> Tus etiquetas</h3>
     <p class="notes-intro">Las etiquetas se crean al añadir recetas. Aquí puedes renombrarlas o eliminarlas; el cambio se aplica a todas las recetas que las usan (sin borrar ninguna receta).</p>
@@ -834,19 +838,20 @@ function doDelTag(t){recipes.forEach(r=>{const i=r.cat.indexOf(t);if(i>=0)r.cat.
 function renameTag(t){openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Renombrar etiqueta</h3><p class="sheet-sub">Se cambiará en todas las recetas que la usan.</p><input id="renInput" class="modal-input" value="${esc(t)}"><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doRenameTag('${esc(t)}')">Guardar</button></div>`);setTimeout(()=>$("#renInput")&&$("#renInput").focus(),60)}
 function doRenameTag(old){const v=$("#renInput").value.trim();if(!v){toast("Pon un nombre");return}recipes.forEach(r=>{const i=r.cat.indexOf(old);if(i>=0){r.cat[i]=v;r.cat=[...new Set(r.cat)]}});const fi=state.filters.indexOf(old);if(fi>=0)state.filters[fi]=v;persist();closeModal();renderAccount();toast("Etiqueta renombrada")}
 
-/* ---------- LOGIN (maqueta) ---------- */
+/* ---------- LOGIN (Firebase) ---------- */
 function renderLogin(){
   view.innerHTML=`
     <div class="login">
       <div class="biglogo"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" aria-hidden="true"><path d="M9.4 5.4 q-1.7 -2.3 0 -4.2" stroke="#F4EDDF" stroke-width="1.5" stroke-linecap="round" opacity=".9"/><path d="M14.6 5.4 q1.7 -2.3 0 -4.2" stroke="#F4EDDF" stroke-width="1.5" stroke-linecap="round" opacity=".9"/><circle cx="12" cy="6.6" r="1.5" fill="#F4EDDF"/><rect x="3.6" y="8.3" width="16.8" height="2.8" rx="1.4" fill="#F4EDDF"/><rect x="5.2" y="11.4" width="13.6" height="8.8" rx="2.8" fill="#F4EDDF"/><path d="M5.2 13 q-2.6 1.5 0 4.3" stroke="#F4EDDF" stroke-width="1.9" stroke-linecap="round"/><path d="M18.8 13 q2.6 1.5 0 4.3" stroke="#F4EDDF" stroke-width="1.9" stroke-linecap="round"/></svg></div>
       <h2>Tu recetario, en todos tus dispositivos</h2>
       <p>Inicia sesión y tus recetas, notas e historial te siguen al móvil y al ordenador.</p>
-      <input type="email" placeholder="Tu email">
-      <input type="password" placeholder="Contraseña">
-      <button class="btn btn-primary btn-block" onclick="toast('Sesión iniciada (demo)');go('home')">Entrar</button>
+      <input id="logEmail" type="email" placeholder="Tu email" autocomplete="email">
+      <input id="logPass" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <button class="btn btn-primary btn-block" onclick="Cloud.loginEmail()">Entrar</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="Cloud.signupEmail()">Crear cuenta nueva</button>
       <div class="or">o</div>
-      <button class="google" onclick="toast('Sesión iniciada con Google (demo)');go('home')"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#C0502A" d="M12 11v3h4.2c-.5 2-2.2 3.3-4.2 3.3A5.3 5.3 0 1 1 15.5 8l2.1-2.1A8 8 0 1 0 20 12c0-.5 0-.7-.1-1z"/></svg> Entrar con Google</button>
-      <p class="demo">Es una maqueta: el login real llega al conectar Firebase. Pulsa Entrar para volver.</p>
+      <button class="google" onclick="Cloud.loginGoogle()"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#C0502A" d="M12 11v3h4.2c-.5 2-2.2 3.3-4.2 3.3A5.3 5.3 0 1 1 15.5 8l2.1-2.1A8 8 0 1 0 20 12c0-.5 0-.7-.1-1z"/></svg> Entrar con Google</button>
+      <p class="demo">Para crear cuenta: escribe email y contraseña y pulsa «Crear cuenta nueva». Dentro de la app instalada, el email/contraseña es lo más fiable.</p>
     </div>`;
 }
 
@@ -937,7 +942,7 @@ function saveRecipe(){
   else{const r={id:'r'+(++idSeq),emoji:'🍽️',col:PALETTE[recipes.length%PALETTE.length],log:[],fav:false,wish:false,added:(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1,...data};recipes.push(r);persist();toast("✓ Receta guardada");go('detail',r)}
 }
 function askDelRecipe(id){const r=recipes.find(x=>x.id===id);openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Eliminar receta</h3><p class="sheet-sub">¿Seguro que quieres borrar «${esc(r.name)}»? No se puede deshacer.</p><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doDelRecipe('${id}')">Eliminar</button></div>`)}
-function doDelRecipe(id){recipes=recipes.filter(x=>x.id!==id);persist();closeModal();toast("Receta eliminada");go('home')}
+function doDelRecipe(id){recipes=recipes.filter(x=>x.id!==id);if(Cloud.on)Cloud.del(id);persist();closeModal();toast("Receta eliminada");go('home')}
 
 /* ---------- COMPRA ---------- */
 function renderShop(){
@@ -1011,7 +1016,99 @@ function beep(){try{actx=actx||new(window.AudioContext||window.webkitAudioContex
 function openModal(html){$("#modalSheet").innerHTML=html;$("#modalBack").classList.add("show")}
 function closeModal(e){if(!e||e.target===$("#modalBack"))$("#modalBack").classList.remove("show")}
 
-loadState();handleRoute();
+/* ---------- FIREBASE (login + sincronización en tiempo real) ---------- */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB6S5VH1UX4pLqUn1F7L76hA3dlP6u1dK8",
+  authDomain: "lapiko-79c92.firebaseapp.com",
+  projectId: "lapiko-79c92",
+  storageBucket: "lapiko-79c92.firebasestorage.app",
+  messagingSenderId: "243121291334",
+  appId: "1:243121291334:web:ce1b97cc7eba6151be8a47"
+};
+const FB_VER='11.0.2';
+const Cloud={
+  ready:false, on:false, app:null, auth:null, db:null, uid:null, email:null, fb:{}, unsub:[], gotRec:false, syncing:false, queued:false,
+  async init(cfg){
+    if(!cfg||!cfg.apiKey)return;
+    try{
+      const a=await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-app.js`);
+      const au=await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-auth.js`);
+      const fs=await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-firestore.js`);
+      this.fb=Object.assign({},au,fs);
+      this.app=a.initializeApp(cfg);
+      this.auth=au.getAuth(this.app);
+      this.db=fs.getFirestore(this.app);
+      this.ready=true;
+      try{await au.getRedirectResult(this.auth)}catch(e){}
+      au.onAuthStateChanged(this.auth,u=>this.onAuth(u));
+    }catch(e){console.warn('Firebase no disponible; sigo en modo local.',e)}
+  },
+  onAuth(u){
+    if(u){
+      this.uid=u.uid;
+      this.email=u.email||(u.providerData&&u.providerData[0]&&u.providerData[0].email)||'';
+      this.on=true; this.gotRec=false;
+      this.attach();
+      if(state.view==='login'){go('home')}else{refreshCurrent()}
+    }else{
+      this.on=false; this.uid=null; this.detach();
+      if(this.ready&&state.view!=='shared'){state.view='login';renderLogin();setActiveNav('home')}
+    }
+  },
+  attach(){
+    this.detach();
+    const {collection,doc,onSnapshot}=this.fb;
+    const recCol=collection(this.db,'users',this.uid,'recipes');
+    const metaRef=doc(this.db,'users',this.uid,'app','meta');
+    this.unsub.push(onSnapshot(recCol,snap=>{
+      const arr=[]; snap.forEach(d=>arr.push(d.data()));
+      if(!this.gotRec && arr.length===0 && recipes.length>0){this.gotRec=true;this.sync();return}
+      this.gotRec=true;
+      arr.forEach((r,i)=>{if(r.added==null)r.added=i;if(!r.col)r.col=PALETTE[i%PALETTE.length];if(!r.log)r.log=[]});
+      recipes=arr;
+      DB.save({recipes,shopping,logSeq,idSeq});
+      refreshCurrent();
+    },err=>console.warn('rec snap',err)));
+    this.unsub.push(onSnapshot(metaRef,d=>{
+      if(d.exists()){const m=d.data();if(Array.isArray(m.shopping))shopping=m.shopping;if(m.logSeq)logSeq=m.logSeq;if(m.idSeq)idSeq=m.idSeq;DB.save({recipes,shopping,logSeq,idSeq});refreshCurrent()}
+    },err=>console.warn('meta snap',err)));
+  },
+  detach(){this.unsub.forEach(u=>{try{u()}catch(e){}});this.unsub=[]},
+  async sync(){
+    if(!this.on||!this.ready)return;
+    if(this.syncing){this.queued=true;return}
+    this.syncing=true;
+    try{
+      const {doc,setDoc,writeBatch}=this.fb;
+      await setDoc(doc(this.db,'users',this.uid,'app','meta'),{shopping,logSeq,idSeq});
+      const batch=writeBatch(this.db);
+      recipes.forEach(r=>batch.set(doc(this.db,'users',this.uid,'recipes',r.id),JSON.parse(JSON.stringify(r))));
+      await batch.commit();
+    }catch(e){console.warn('sync',e)}
+    this.syncing=false;
+    if(this.queued){this.queued=false;this.sync()}
+  },
+  async del(id){if(!this.on||!this.ready)return;try{const {doc,deleteDoc}=this.fb;await deleteDoc(doc(this.db,'users',this.uid,'recipes',id))}catch(e){console.warn('del',e)}},
+  async loginEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||!p){toast('Pon tu email y contraseña');return}try{await this.fb.signInWithEmailAndPassword(this.auth,e,p)}catch(err){toast(this.errMsg(err))}},
+  async signupEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||p.length<6){toast('Email y contraseña (mínimo 6 caracteres)');return}try{await this.fb.createUserWithEmailAndPassword(this.auth,e,p);toast('Cuenta creada ✓')}catch(err){toast(this.errMsg(err))}},
+  async loginGoogle(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}try{const prov=new this.fb.GoogleAuthProvider();await this.fb.signInWithRedirect(this.auth,prov)}catch(err){toast(this.errMsg(err))}},
+  async signOut(){try{await this.fb.signOut(this.auth)}catch(e){}},
+  errMsg(err){const c=(err&&err.code)||'';if(c.indexOf('invalid-credential')>-1||c.indexOf('wrong-password')>-1||c.indexOf('user-not-found')>-1)return 'Email o contraseña incorrectos';if(c.indexOf('email-already-in-use')>-1)return 'Ese email ya tiene cuenta; pulsa Entrar';if(c.indexOf('invalid-email')>-1)return 'Email no válido';if(c.indexOf('weak-password')>-1)return 'Contraseña demasiado corta (mín. 6)';if(c.indexOf('network')>-1)return 'Sin conexión con el servidor';if(c.indexOf('popup')>-1||c.indexOf('redirect')>-1)return 'No se pudo abrir Google; reintenta';return 'No se pudo iniciar sesión'}
+};
+function refreshCurrent(){
+  if(Cloud._t)clearTimeout(Cloud._t);
+  Cloud._t=setTimeout(()=>{
+    const ck=$("#cook"); if(ck&&ck.classList.contains('show'))return;
+    const v=state.view;
+    if(v==='detail'&&state.recipe){const f=recipes.find(x=>x.id===state.recipe.id);if(f){state.recipe=f;renderDetail()}else{go('home')}return}
+    if(v==='shop'){renderShop();return}
+    if(v==='account'){renderAccount();return}
+    if(v==='home'){renderHome();return}
+  },150);
+}
+
+loadState();handleRoute();Cloud.init(FIREBASE_CONFIG);
+if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
 </script>
 </body>
 </html>
