@@ -265,6 +265,8 @@
   .login .google{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;border:1px solid var(--line-strong);background:var(--surface);border-radius:11px;padding:13px;font-weight:700;transition:.15s}
   .login .google:hover{border-color:var(--ink-faint)}
   .login .demo{font-size:.78rem;color:var(--ink-faint);margin-top:18px}
+  .login-switch{font-size:.92rem;color:var(--ink-soft);margin-top:20px;text-align:center}
+  .linkbtn{background:none;border:none;color:var(--accent);font-weight:700;font-family:inherit;font-size:inherit;padding:0;cursor:pointer;text-decoration:underline}
   .acct-card{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px}
   .acct-av{width:46px;height:46px;border-radius:50%;background:var(--paper-2);display:grid;place-items:center;color:var(--ink-soft);flex-shrink:0}
   .acct-info{flex:1;min-width:0}
@@ -840,18 +842,18 @@ function doRenameTag(old){const v=$("#renInput").value.trim();if(!v){toast("Pon 
 
 /* ---------- LOGIN (Firebase) ---------- */
 function renderLogin(){
+  const signup=Cloud.mode==='signup';
   view.innerHTML=`
     <div class="login">
       <div class="biglogo"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" aria-hidden="true"><path d="M9.4 5.4 q-1.7 -2.3 0 -4.2" stroke="#F4EDDF" stroke-width="1.5" stroke-linecap="round" opacity=".9"/><path d="M14.6 5.4 q1.7 -2.3 0 -4.2" stroke="#F4EDDF" stroke-width="1.5" stroke-linecap="round" opacity=".9"/><circle cx="12" cy="6.6" r="1.5" fill="#F4EDDF"/><rect x="3.6" y="8.3" width="16.8" height="2.8" rx="1.4" fill="#F4EDDF"/><rect x="5.2" y="11.4" width="13.6" height="8.8" rx="2.8" fill="#F4EDDF"/><path d="M5.2 13 q-2.6 1.5 0 4.3" stroke="#F4EDDF" stroke-width="1.9" stroke-linecap="round"/><path d="M18.8 13 q2.6 1.5 0 4.3" stroke="#F4EDDF" stroke-width="1.9" stroke-linecap="round"/></svg></div>
-      <h2>Tu recetario, en todos tus dispositivos</h2>
-      <p>Inicia sesión y tus recetas, notas e historial te siguen al móvil y al ordenador.</p>
+      <h2>${signup?'Crea tu cuenta':'Bienvenido de nuevo'}</h2>
+      <p>${signup?'Con una cuenta tus recetas se sincronizan entre el móvil y el ordenador.':'Inicia sesión y recupera tus recetas en cualquier dispositivo.'}</p>
       <input id="logEmail" type="email" placeholder="Tu email" autocomplete="email">
-      <input id="logPass" type="password" placeholder="Contraseña" autocomplete="current-password">
-      <button class="btn btn-primary btn-block" onclick="Cloud.loginEmail()">Entrar</button>
-      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="Cloud.signupEmail()">Crear cuenta nueva</button>
+      <input id="logPass" type="password" placeholder="Contraseña${signup?' (mínimo 6 caracteres)':''}" autocomplete="${signup?'new-password':'current-password'}" onkeydown="if(event.key==='Enter'){${signup?'Cloud.signupEmail()':'Cloud.loginEmail()'}}">
+      <button class="btn btn-primary btn-block" onclick="${signup?'Cloud.signupEmail()':'Cloud.loginEmail()'}">${signup?'Crear cuenta':'Entrar'}</button>
       <div class="or">o</div>
-      <button class="google" onclick="Cloud.loginGoogle()"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#C0502A" d="M12 11v3h4.2c-.5 2-2.2 3.3-4.2 3.3A5.3 5.3 0 1 1 15.5 8l2.1-2.1A8 8 0 1 0 20 12c0-.5 0-.7-.1-1z"/></svg> Entrar con Google</button>
-      <p class="demo">Para crear cuenta: escribe email y contraseña y pulsa «Crear cuenta nueva». Dentro de la app instalada, el email/contraseña es lo más fiable.</p>
+      <button class="google" onclick="Cloud.loginGoogle()"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#C0502A" d="M12 11v3h4.2c-.5 2-2.2 3.3-4.2 3.3A5.3 5.3 0 1 1 15.5 8l2.1-2.1A8 8 0 1 0 20 12c0-.5 0-.7-.1-1z"/></svg> Continuar con Google</button>
+      <p class="login-switch">${signup?'¿Ya tienes cuenta?':'¿Primera vez en Lapiko?'} <button class="linkbtn" onclick="Cloud.setMode('${signup?'signin':'signup'}')">${signup?'Inicia sesión':'Crea una cuenta'}</button></p>
     </div>`;
 }
 
@@ -1027,7 +1029,7 @@ const FIREBASE_CONFIG = {
 };
 const FB_VER='11.0.2';
 const Cloud={
-  ready:false, on:false, app:null, auth:null, db:null, uid:null, email:null, fb:{}, unsub:[], gotRec:false, syncing:false, queued:false,
+  ready:false, on:false, mode:'signin', app:null, auth:null, db:null, uid:null, email:null, fb:{}, unsub:[], gotRec:false, syncing:false, queued:false,
   async init(cfg){
     if(!cfg||!cfg.apiKey)return;
     try{
@@ -1093,6 +1095,7 @@ const Cloud={
   async signupEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||p.length<6){toast('Email y contraseña (mínimo 6 caracteres)');return}try{await this.fb.createUserWithEmailAndPassword(this.auth,e,p);toast('Cuenta creada ✓')}catch(err){toast(this.errMsg(err))}},
   async loginGoogle(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}try{const prov=new this.fb.GoogleAuthProvider();await this.fb.signInWithRedirect(this.auth,prov)}catch(err){toast(this.errMsg(err))}},
   async signOut(){try{await this.fb.signOut(this.auth)}catch(e){}},
+  setMode(m){this.mode=m;renderLogin();setTimeout(()=>{const el=$("#logEmail");if(el)el.focus()},40)},
   errMsg(err){const c=(err&&err.code)||'';if(c.indexOf('invalid-credential')>-1||c.indexOf('wrong-password')>-1||c.indexOf('user-not-found')>-1)return 'Email o contraseña incorrectos';if(c.indexOf('email-already-in-use')>-1)return 'Ese email ya tiene cuenta; pulsa Entrar';if(c.indexOf('invalid-email')>-1)return 'Email no válido';if(c.indexOf('weak-password')>-1)return 'Contraseña demasiado corta (mín. 6)';if(c.indexOf('network')>-1)return 'Sin conexión con el servidor';if(c.indexOf('popup')>-1||c.indexOf('redirect')>-1)return 'No se pudo abrir Google; reintenta';return 'No se pudo iniciar sesión'}
 };
 function refreshCurrent(){
