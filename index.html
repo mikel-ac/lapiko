@@ -233,6 +233,13 @@
   .rm-prep:hover{background:#fbeae5;border-color:var(--accent)}
   .mini-label{font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin:12px 0 7px}
   .prep-edit .dyn-row input{background:var(--paper)}
+  .mv-grp{display:flex;flex-direction:column;flex-shrink:0;gap:3px}
+  .mv{width:28px;height:18px;border:1px solid var(--line-strong);background:var(--paper);border-radius:6px;color:var(--ink-soft);font-size:.7rem;display:grid;place-items:center;padding:0;line-height:1}
+  .mv:active{background:var(--paper-2)}
+  .emojipick{display:flex;align-items:flex-start;gap:12px}
+  .emoji-quick{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+  .emoji-quick button{width:38px;height:38px;border:1px solid var(--line);background:var(--surface);border-radius:9px;font-size:1.15rem;display:grid;place-items:center}
+  .emoji-quick button:active{background:var(--paper-2)}
   .costpick button{flex:1;border:1px solid var(--line-strong);background:var(--surface);border-radius:11px;padding:11px;font-weight:700;letter-spacing:1px;color:var(--ink-faint);transition:.15s}
   .costpick button.on{border-color:var(--herb);background:rgba(94,107,57,.1);color:var(--herb)}
   .tagpick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
@@ -861,8 +868,8 @@ function renderLogin(){
 let formState={editId:null,photo:null};
 function newRecipe(){formState={editId:null,photo:null};go('add')}
 function editRecipe(id){const r=recipes.find(x=>x.id===id);formState={editId:id,photo:r.photo||null};go('add')}
-function ingRowHTML(ig){const v=ig&&ig.n?`${ig.q?fmtQty(ig.q)+(ig.u?' '+ig.u:''):''} ${ig.n}`.replace(/\s+/g,' ').trim():'';return `<div class="dyn-row"><input class="ing-in" list="ingDL" value="${esc(v)}" placeholder="200 g harina"><button class="opc-btn ${ig&&ig.opt?'on':''}" onclick="this.classList.toggle('on')" title="Opcional">opc</button><button class="del" onclick="rmRow(this)">×</button></div>`}
-function stepRowHTML(s){return `<div class="dyn-row"><input class="step-in" value="${s&&s.t?esc(s.t):''}" placeholder="Describe el paso…"><button class="opc-btn ${s&&s.opt?'on':''}" onclick="this.classList.toggle('on')" title="Opcional">opc</button><button class="del" onclick="rmRow(this)">×</button></div>`}
+function ingRowHTML(ig){const v=ig&&ig.n?`${ig.q?fmtQty(ig.q)+(ig.u?' '+ig.u:''):''} ${ig.n}`.replace(/\s+/g,' ').trim():'';return `<div class="dyn-row"><span class="mv-grp"><button type="button" class="mv" tabindex="-1" onclick="moveRow(this,-1)">↑</button><button type="button" class="mv" tabindex="-1" onclick="moveRow(this,1)">↓</button></span><input class="ing-in" list="ingDL" value="${esc(v)}" placeholder="200 g harina" onkeydown="rowKey(event,this,'ing')"><button type="button" class="opc-btn ${ig&&ig.opt?'on':''}" tabindex="-1" onclick="this.classList.toggle('on')" title="Opcional">opc</button><button type="button" class="del" tabindex="-1" onclick="rmRow(this)">×</button></div>`}
+function stepRowHTML(s){return `<div class="dyn-row"><span class="mv-grp"><button type="button" class="mv" tabindex="-1" onclick="moveRow(this,-1)">↑</button><button type="button" class="mv" tabindex="-1" onclick="moveRow(this,1)">↓</button></span><input class="step-in" value="${s&&s.t?esc(s.t):''}" placeholder="Describe el paso…" onkeydown="rowKey(event,this,'step')"><button type="button" class="opc-btn ${s&&s.opt?'on':''}" tabindex="-1" onclick="this.classList.toggle('on')" title="Opcional">opc</button><button type="button" class="del" tabindex="-1" onclick="rmRow(this)">×</button></div>`}
 function prepBlockHTML(p){
   const ing=(p&&p.ings&&p.ings.length?p.ings:[{},{}]).map(ig=>ingRowHTML(ig)).join("");
   const stp=(p&&p.steps&&p.steps.length?p.steps:[{}]).map(s=>stepRowHTML(s)).join("");
@@ -882,6 +889,9 @@ function addPrep(){$("#prepList").insertAdjacentHTML('beforeend',prepBlockHTML()
 function rmPrep(b){b.closest('.prep-edit').remove();updateRmPrep()}
 function updateRmPrep(){const bl=document.querySelectorAll('.prep-edit');bl.forEach(x=>{x.querySelector('.rm-prep').style.display=bl.length>1?'grid':'none'})}
 function rmRow(b){b.parentElement.remove()}
+function moveRow(b,dir){const row=b.closest('.dyn-row');const pa=row.parentElement;if(dir<0){const prev=row.previousElementSibling;if(prev)pa.insertBefore(row,prev)}else{const next=row.nextElementSibling;if(next)pa.insertBefore(next,row)}}
+function rowKey(e,input,type){if(e.key==='Enter'){e.preventDefault();const row=input.closest('.dyn-row');row.insertAdjacentHTML('afterend',type==='ing'?ingRowHTML():stepRowHTML());const nx=row.nextElementSibling;if(nx){const ni=nx.querySelector('input');if(ni)ni.focus()}}}
+function setEmoji(e){const el=$("#fEmoji");if(el)el.value=e}
 function pickCost(b){b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on")}
 function previewPhoto(inp){const f=inp.files&&inp.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const img=new Image();img.onload=()=>{const max=1000;let w=img.width,h=img.height;if(w>max||h>max){const k=Math.min(max/w,max/h);w=Math.round(w*k);h=Math.round(h*k)}const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const data=cv.toDataURL('image/jpeg',0.82);formState.photo=data;const p=$("#photoPrev");p.textContent="";p.style.backgroundImage=`url('${data}')`};img.src=rd.result};rd.readAsDataURL(f)}
 function parseIng(txt){const m=txt.trim().match(/^(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|cdas?|cdtas?|tazas?|dientes?|pizcas?|puñados?|latas?|botes?|sobres?|chorros?|unidades?|uds?)?\s+(.+)$/i);if(m)return{q:parseFloat(m[1].replace(',','.')),u:(m[2]||'').toLowerCase(),n:m[3].trim()};return{q:null,u:'',n:txt.trim()}}
@@ -891,6 +901,8 @@ function renderForm(){
   const tags=allCats();
   const r=formState.editId?recipes.find(x=>x.id===formState.editId):null;
   const sel=(r&&r.cost)||1;
+  const emoji=r?r.emoji:"🍽️";
+  const emojis=["🍽️","🥘","🍲","🍝","🍜","🍕","🍔","🌮","🥗","🍳","🥩","🍗","🐟","🦐","🍰","🥖","🧀","🍅","🌶️","🍤","🍚","🥧","🍞","🫕"];
   const preps=r?r.preps:[null];
   view.innerHTML=`
     <div class="page-head"><div class="kicker">${r?'Editar':'Nueva receta'}</div><h2>${r?esc(r.name):'Añadir receta'}</h2><p>Rellena lo que quieras: lo único imprescindible es el nombre.</p></div>
@@ -909,9 +921,16 @@ function renderForm(){
         <div class="tagpick">${tags.map(t=>`<button class="chip ${t==='Gotxo'?'tag-gotxo':''} ${r&&r.cat.includes(t)?'on':''}" onclick="this.classList.toggle('on')">${esc(t)}</button>`).join("")}</div>
         <input id="fTagNew" placeholder="Añade etiquetas nuevas, separadas por comas…">
       </div>
+      <div class="field"><label>Icono</label>
+        <div class="emojipick">
+          <input id="fEmoji" value="${emoji}" maxlength="4" style="width:64px;text-align:center;font-size:1.4rem">
+          <div class="emoji-quick">${emojis.map(e=>`<button type="button" onclick="setEmoji('${e}')">${e}</button>`).join("")}</div>
+        </div>
+        <div class="hint">Se usa cuando la receta no tiene foto.</div>
+      </div>
       <div class="field"><label>Foto (opcional)</label>
         <div class="photopick">
-          <div class="photo-prev" id="photoPrev" style="${formState.photo?`background-image:url('${formState.photo}')`:''}">${formState.photo?'':'🍽️'}</div>
+          <div class="photo-prev" id="photoPrev" style="${formState.photo?`background-image:url('${formState.photo}')`:''}">${formState.photo?'':emoji}</div>
           <div><input type="file" accept="image/*" id="photoIn" onchange="previewPhoto(this)"><div class="hint">Si no pones foto, se usa el degradado con icono. La foto se recorta sola al mismo formato.</div></div>
         </div>
       </div>
@@ -927,7 +946,9 @@ function renderForm(){
   updateRmPrep();
 }
 function saveRecipe(){
+  if(formState.saving)return;
   const name=$("#fName").value.trim(); if(!name){toast("Ponle un nombre a la receta");window.scrollTo(0,0);return}
+  formState.saving=true;
   const preps=[...document.querySelectorAll('.prep-edit')].map(pe=>{
     const pn=pe.querySelector('.prep-name').value.trim();
     const ings=[...pe.querySelectorAll('.ing-rows .dyn-row')].map(row=>{const t=row.querySelector('input').value.trim();if(!t)return null;const o=parseIng(t);if(row.querySelector('.opc-btn').classList.contains('on'))o.opt=true;return o}).filter(Boolean);
@@ -939,9 +960,11 @@ function saveRecipe(){
   const tags=[...new Set([...document.querySelectorAll('.tagpick .chip.on')].map(b=>b.textContent.trim()).concat(($("#fTagNew").value||'').split(',').map(s=>s.trim()).filter(Boolean)))];
   const data={name,cat:tags,servings:parseInt($("#fServ").value)||1,time:parseInt($("#fTime").value)||0,diff:$("#fDiff").value,cost:parseInt(document.querySelector('.costpick button.on')?.dataset.c)||1,yt:$("#fYt").value.trim(),preps};
   const src=$("#fSrc").value.trim(); if(src)data.src=src;
+  data.emoji=($("#fEmoji").value||"").trim()||"🍽️";
   if(formState.photo)data.photo=formState.photo;
   if(formState.editId){const r=recipes.find(x=>x.id===formState.editId);Object.assign(r,data);if(!src)delete r.src;persist();toast("✓ Cambios guardados");go('detail',r)}
-  else{const r={id:'r'+(++idSeq),emoji:'🍽️',col:PALETTE[recipes.length%PALETTE.length],log:[],fav:false,wish:false,added:(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1,...data};recipes.push(r);persist();toast("✓ Receta guardada");go('detail',r)}
+  else{const r={id:'r'+(++idSeq),emoji:'🍽️',col:PALETTE[recipes.length%PALETTE.length],log:[],fav:false,wish:false,added:(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1,...data};recipes.push(r);formState.editId=r.id;persist();toast("✓ Receta guardada");go('detail',r)}
+  formState.saving=false;
 }
 function askDelRecipe(id){const r=recipes.find(x=>x.id===id);openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Eliminar receta</h3><p class="sheet-sub">¿Seguro que quieres borrar «${esc(r.name)}»? No se puede deshacer.</p><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doDelRecipe('${id}')">Eliminar</button></div>`)}
 function doDelRecipe(id){recipes=recipes.filter(x=>x.id!==id);if(Cloud.on)Cloud.del(id);persist();closeModal();toast("Receta eliminada");go('home')}
