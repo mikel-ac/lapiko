@@ -78,17 +78,11 @@
   .chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 
   .chips-wrap{position:relative;margin-bottom:12px}
-  .chips-nav{display:none}
-  @media(min-width:761px){
-    .chips-wrap.has-left::before,.chips-wrap.has-right::after{content:"";position:absolute;top:0;bottom:8px;width:48px;z-index:2;pointer-events:none}
-    .chips-wrap.has-left::before{left:0;background:linear-gradient(90deg,var(--paper),transparent)}
-    .chips-wrap.has-right::after{right:0;background:linear-gradient(270deg,var(--paper),transparent)}
-    .chips-nav{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:8px;border:1px solid var(--ink);background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:1.1rem;line-height:1;display:grid;place-items:center;z-index:3;box-shadow:0 2px 8px rgba(20,25,26,.14);opacity:0;pointer-events:none;transition:.14s}
-    .chips-nav.show{opacity:1;pointer-events:auto}
-    .chips-nav:hover{background:var(--ink);color:var(--paper)}
-    .chips-nav.left{left:-2px}
-    .chips-nav.right{right:-2px}
-  }
+  .hbar{display:none;width:100px;height:6px;margin:11px auto 0;background:var(--line);border-radius:99px;position:relative;cursor:pointer}
+  .hthumb{position:absolute;top:0;height:100%;min-width:22px;background:var(--ink-faint);border-radius:99px;cursor:grab;transition:background .14s}
+  .hthumb:hover{background:var(--ink-soft)}
+  .hthumb.drag{background:var(--ink);cursor:grabbing}
+  @media(min-width:761px){.hbar.show{display:block}}
   .results-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 6px}
   .results-count{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
   .clear-filters{font-family:var(--mono);font-weight:600;font-size:.74rem;letter-spacing:.04em;color:var(--accent);padding:6px 10px;border-radius:7px;transition:.14s}
@@ -631,9 +625,8 @@ function renderHome(){
       </div>
     </div>
     <div class="chips-wrap">
-      <button class="chips-nav left" aria-label="Ver filtros anteriores" onclick="scrollChips(-1)">‹</button>
       <div class="chips" id="chipScroll">${cats.map(c=>`<button class="chip ${state.filters.includes(c)?'on':''}" onclick="toggleTag('${esc(c)}')">${esc(c)}</button>`).join("")}</div>
-      <button class="chips-nav right" aria-label="Ver más filtros" onclick="scrollChips(1)">›</button>
+      <div class="hbar" id="chipBar"><div class="hthumb" id="chipThumb"></div></div>
     </div>
     <div class="results-bar"><span class="results-count">${list.length} ${list.length===1?'receta':'recetas'}</span>${active?`<button class="clear-filters" onclick="clearFilters()">✕ Limpiar</button>`:''}</div>
     ${list.length?`<div class="grid">${list.map((x,i)=>cardHTML(x.r,i,x.reason)).join("")}</div>`:
@@ -658,21 +651,29 @@ function cardHTML(r,i,reason){
 }
 function setupChips(){
   const el=document.getElementById('chipScroll'); if(!el)return;
-  const wrap=el.parentElement;
+  const bar=document.getElementById('chipBar'), thumb=document.getElementById('chipThumb');
   function update(){
-    const max=el.scrollWidth-el.clientWidth-1;
-    const l=el.scrollLeft>4, r=el.scrollLeft<max;
-    wrap.classList.toggle('has-left',l); wrap.classList.toggle('has-right',r);
-    const lb=wrap.querySelector('.chips-nav.left'), rb=wrap.querySelector('.chips-nav.right');
-    if(lb)lb.classList.toggle('show',l); if(rb)rb.classList.toggle('show',r);
+    const max=el.scrollWidth-el.clientWidth;
+    if(max<=1){if(bar)bar.classList.remove('show');return}
+    if(bar)bar.classList.add('show');
+    if(!bar||!thumb)return;
+    const tw=bar.clientWidth, thw=Math.max(22, tw*(el.clientWidth/el.scrollWidth));
+    thumb.style.width=thw+'px';
+    thumb.style.left=((tw-thw)*(el.scrollLeft/max))+'px';
   }
   el.onscroll=update;
   el.addEventListener('wheel',function(e){if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){el.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
+  if(thumb){
+    let drag=null;
+    thumb.addEventListener('pointerdown',function(e){e.preventDefault();const tw=bar.clientWidth,thw=thumb.offsetWidth;drag={x:e.clientX,sl:el.scrollLeft,range:Math.max(1,tw-thw),max:el.scrollWidth-el.clientWidth};thumb.classList.add('drag');try{thumb.setPointerCapture(e.pointerId)}catch(_){}});
+    thumb.addEventListener('pointermove',function(e){if(!drag)return;el.scrollLeft=drag.sl+((e.clientX-drag.x)/drag.range)*drag.max});
+    thumb.addEventListener('pointerup',function(e){drag=null;thumb.classList.remove('drag');try{thumb.releasePointerCapture(e.pointerId)}catch(_){}});
+  }
+  if(bar)bar.addEventListener('pointerdown',function(e){if(e.target===thumb)return;const r=bar.getBoundingClientRect();el.scrollLeft=((e.clientX-r.left)/r.width)*(el.scrollWidth-el.clientWidth);update()});
   window._chipsUpdate=update;
   if(!window._chipsResizeBound){window.addEventListener('resize',function(){if(window._chipsUpdate)window._chipsUpdate()});window._chipsResizeBound=true}
   update();
 }
-function scrollChips(dir){const el=document.getElementById('chipScroll');if(!el)return;el.scrollBy({left:dir*220,behavior:'smooth'})}
 function setCol(c){state.col=c;renderHome()}
 function setSort(s){state.sort=s;renderHome()}
 function sortLabel(){return {recent:'Recientes',favfirst:'Favoritas primero',fast:'Más rápidas',cheap:'Más económicas'}[state.sort]}
