@@ -71,12 +71,24 @@
   .optrow button.on{background:var(--ink);color:var(--paper)}
   .optrow .ck{color:var(--accent)}
 
-  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:none}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:0;scrollbar-width:none;scroll-behavior:smooth}
   .chips::-webkit-scrollbar{display:none}
   .chip{white-space:nowrap;border:1px solid var(--line-strong);background:var(--surface);padding:7px 13px;border-radius:999px;font-family:var(--mono);font-weight:500;font-size:.74rem;letter-spacing:.02em;color:var(--ink-soft);transition:.15s;flex-shrink:0}
   .chip:hover{border-color:var(--ink);color:var(--ink)}
   .chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 
+  .chips-wrap{position:relative;margin-bottom:12px}
+  .chips-nav{display:none}
+  @media(min-width:761px){
+    .chips-wrap.has-left::before,.chips-wrap.has-right::after{content:"";position:absolute;top:0;bottom:8px;width:48px;z-index:2;pointer-events:none}
+    .chips-wrap.has-left::before{left:0;background:linear-gradient(90deg,var(--paper),transparent)}
+    .chips-wrap.has-right::after{right:0;background:linear-gradient(270deg,var(--paper),transparent)}
+    .chips-nav{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:8px;border:1px solid var(--ink);background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:1.1rem;line-height:1;display:grid;place-items:center;z-index:3;box-shadow:0 2px 8px rgba(20,25,26,.14);opacity:0;pointer-events:none;transition:.14s}
+    .chips-nav.show{opacity:1;pointer-events:auto}
+    .chips-nav:hover{background:var(--ink);color:var(--paper)}
+    .chips-nav.left{left:-2px}
+    .chips-nav.right{right:-2px}
+  }
   .results-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 6px}
   .results-count{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
   .clear-filters{font-family:var(--mono);font-weight:600;font-size:.74rem;letter-spacing:.04em;color:var(--accent);padding:6px 10px;border-radius:7px;transition:.14s}
@@ -228,10 +240,6 @@
   .drag{flex-shrink:0;width:30px;align-self:stretch;display:grid;place-items:center;color:var(--ink-faint);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
   .drag:active{cursor:grabbing;color:var(--ink-soft)}
   .dyn-row.dragging{opacity:.96;box-shadow:0 10px 26px rgba(20,25,26,.18);background:var(--surface);border-radius:10px;position:relative;z-index:5}
-  .emojipick{display:flex;align-items:flex-start;gap:12px}
-  .emoji-quick{display:flex;flex-wrap:wrap;gap:6px;flex:1}
-  .emoji-quick button{width:38px;height:38px;border:1px solid var(--line);background:var(--surface);border-radius:8px;font-size:1.1rem;display:grid;place-items:center}
-  .emoji-quick button:active{background:var(--paper-2)}
   .costpick button{flex:1;border:1px solid var(--line-strong);background:var(--surface);border-radius:9px;padding:11px;font-family:var(--mono);font-weight:600;letter-spacing:1px;color:var(--ink-faint);transition:.15s}
   .costpick button.on{border-color:var(--ink);background:var(--ink);color:var(--paper)}
   .tagpick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
@@ -622,11 +630,16 @@ function renderHome(){
         <button class="dice" onclick="surprise()" aria-label="Sorpréndeme" title="Sorpréndeme">🎲</button>
       </div>
     </div>
-    <div class="chips">${cats.map(c=>`<button class="chip ${state.filters.includes(c)?'on':''}" onclick="toggleTag('${esc(c)}')">${esc(c)}</button>`).join("")}</div>
+    <div class="chips-wrap">
+      <button class="chips-nav left" aria-label="Ver filtros anteriores" onclick="scrollChips(-1)">‹</button>
+      <div class="chips" id="chipScroll">${cats.map(c=>`<button class="chip ${state.filters.includes(c)?'on':''}" onclick="toggleTag('${esc(c)}')">${esc(c)}</button>`).join("")}</div>
+      <button class="chips-nav right" aria-label="Ver más filtros" onclick="scrollChips(1)">›</button>
+    </div>
     <div class="results-bar"><span class="results-count">${list.length} ${list.length===1?'receta':'recetas'}</span>${active?`<button class="clear-filters" onclick="clearFilters()">✕ Limpiar</button>`:''}</div>
     ${list.length?`<div class="grid">${list.map((x,i)=>cardHTML(x.r,i,x.reason)).join("")}</div>`:
       `<div class="empty"><div class="e">🍂</div><p>No hay recetas que coincidan.</p>${active?`<button class="btn btn-ghost" style="margin-top:14px" onclick="clearFilters()">Quitar filtros</button>`:''}</div>`}
   `;
+  setupChips();
 }
 function lpkNum(r){const m=(r.id||'').match(/\d+/);const n=m?parseInt(m[0]):0;return n?String(n).padStart(3,'0'):'—'}
 function filterByTag(c){state.col='all';state.filters=[c];const s=$("#search");if(s)s.value="";state.q="";go('home')}
@@ -643,6 +656,23 @@ function cardHTML(r,i,reason){
     <span class="card-arrow">→</span>
   </article>`;
 }
+function setupChips(){
+  const el=document.getElementById('chipScroll'); if(!el)return;
+  const wrap=el.parentElement;
+  function update(){
+    const max=el.scrollWidth-el.clientWidth-1;
+    const l=el.scrollLeft>4, r=el.scrollLeft<max;
+    wrap.classList.toggle('has-left',l); wrap.classList.toggle('has-right',r);
+    const lb=wrap.querySelector('.chips-nav.left'), rb=wrap.querySelector('.chips-nav.right');
+    if(lb)lb.classList.toggle('show',l); if(rb)rb.classList.toggle('show',r);
+  }
+  el.onscroll=update;
+  el.addEventListener('wheel',function(e){if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){el.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
+  window._chipsUpdate=update;
+  if(!window._chipsResizeBound){window.addEventListener('resize',function(){if(window._chipsUpdate)window._chipsUpdate()});window._chipsResizeBound=true}
+  update();
+}
+function scrollChips(dir){const el=document.getElementById('chipScroll');if(!el)return;el.scrollBy({left:dir*220,behavior:'smooth'})}
 function setCol(c){state.col=c;renderHome()}
 function setSort(s){state.sort=s;renderHome()}
 function sortLabel(){return {recent:'Recientes',favfirst:'Favoritas primero',fast:'Más rápidas',cheap:'Más económicas'}[state.sort]}
@@ -886,7 +916,6 @@ function dragStart(e,h){e.preventDefault();const row=h.closest('.dyn-row');_drag
 function dragMove(e){if(!_drag)return;e.preventDefault();const y=e.clientY;const rows=[..._drag.cont.querySelectorAll(':scope > .dyn-row')].filter(r=>r!==_drag.row);let before=null;for(const r of rows){const b=r.getBoundingClientRect();if(y<b.top+b.height/2){before=r;break}}if(before)_drag.cont.insertBefore(_drag.row,before);else _drag.cont.appendChild(_drag.row)}
 function dragEnd(e,h){if(!_drag)return;_drag.row.classList.remove('dragging');try{h.releasePointerCapture(e.pointerId)}catch(_){}h.onpointermove=h.onpointerup=h.onpointercancel=null;_drag=null}
 function rowKey(e,input,type){if(e.key==='Enter'){e.preventDefault();const row=input.closest('.dyn-row');row.insertAdjacentHTML('afterend',type==='ing'?ingRowHTML():stepRowHTML());const nx=row.nextElementSibling;if(nx){const ni=nx.querySelector('input');if(ni)ni.focus()}}}
-function setEmoji(e){const el=$("#fEmoji");if(el)el.value=e}
 function pickCost(b){b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on")}
 function previewPhoto(inp){const f=inp.files&&inp.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const img=new Image();img.onload=()=>{const max=1000;let w=img.width,h=img.height;if(w>max||h>max){const k=Math.min(max/w,max/h);w=Math.round(w*k);h=Math.round(h*k)}const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const data=cv.toDataURL('image/jpeg',0.82);formState.photo=data;const p=$("#photoPrev");p.textContent="";p.style.backgroundImage=`url('${data}')`};img.src=rd.result};rd.readAsDataURL(f)}
 const UNITS={g:'g',gr:'g',grs:'g',gramo:'g',gramos:'g',kg:'kg',kgs:'kg',kilo:'kg',kilos:'kg',kilogramo:'kg',kilogramos:'kg',mg:'mg',ml:'ml',mililitro:'ml',mililitros:'ml',cl:'cl',l:'l',litro:'l',litros:'l',cda:'cda',cdas:'cda',cucharada:'cda',cucharadas:'cda',cdta:'cdta',cdtas:'cdta',cucharadita:'cdta',cucharaditas:'cdta',cucharadilla:'cdta',cucharadillas:'cdta',cucharilla:'cdta',cucharillas:'cdta',taza:'taza',tazas:'tazas',vaso:'vaso',vasos:'vasos',diente:'diente',dientes:'dientes',pizca:'pizca',pizcas:'pizcas','puñado':'puñado','puñados':'puñados',punado:'puñado',punados:'puñados',lata:'lata',latas:'latas',bote:'bote',botes:'botes',sobre:'sobre',sobres:'sobres',chorro:'chorro',chorros:'chorros',loncha:'loncha',lonchas:'lonchas',rodaja:'rodaja',rodajas:'rodajas',hoja:'hoja',hojas:'hojas',rama:'rama',ramas:'ramas',ramita:'ramita',ramitas:'ramitas',unidad:'ud',unidades:'ud',ud:'ud',uds:'ud'};
@@ -897,8 +926,6 @@ function renderForm(){
   const tags=allCats();
   const r=formState.editId?recipes.find(x=>x.id===formState.editId):null;
   const sel=(r&&r.cost)||1;
-  const emoji=r?r.emoji:"🍽️";
-  const emojis=["🍽️","🥘","🍲","🍝","🍜","🍕","🍔","🌮","🥗","🍳","🥩","🍗","🐟","🦐","🍰","🥖","🧀","🍅","🌶️","🍤","🍚","🥧","🍞","🫕"];
   const preps=r?r.preps:[null];
   view.innerHTML=`
     <div class="page-head"><div class="kicker">${r?'Editar':'Nueva receta'}</div><h2>${r?esc(r.name):'Añadir receta'}</h2><p>Rellena lo que quieras: lo único imprescindible es el nombre.</p></div>
@@ -917,17 +944,10 @@ function renderForm(){
         <div class="tagpick">${tags.map(t=>`<button class="chip ${t==='Gotxo'?'tag-gotxo':''} ${r&&(r.cat||[]).includes(t)?'on':''}" onclick="this.classList.toggle('on')">${esc(t)}</button>`).join("")}</div>
         <input id="fTagNew" placeholder="Añade etiquetas nuevas, separadas por comas…">
       </div>
-      <div class="field"><label>Icono</label>
-        <div class="emojipick">
-          <input id="fEmoji" value="${emoji}" maxlength="4" style="width:64px;text-align:center;font-size:1.4rem">
-          <div class="emoji-quick">${emojis.map(e=>`<button type="button" onclick="setEmoji('${e}')">${e}</button>`).join("")}</div>
-        </div>
-        <div class="hint">Se usa cuando la receta no tiene foto.</div>
-      </div>
       <div class="field"><label>Foto (opcional)</label>
         <div class="photopick">
-          <div class="photo-prev" id="photoPrev" style="${formState.photo?`background-image:url('${formState.photo}')`:''}">${formState.photo?'':emoji}</div>
-          <div><input type="file" accept="image/*" id="photoIn" onchange="previewPhoto(this)"><div class="hint">Si no pones foto, se usa el degradado con icono. La foto se recorta sola al mismo formato.</div></div>
+          <div class="photo-prev" id="photoPrev" style="${formState.photo?`background-image:url('${formState.photo}')`:''}">${formState.photo?'':'📷'}</div>
+          <div><input type="file" accept="image/*" id="photoIn" onchange="previewPhoto(this)"><div class="hint">Opcional. La foto se ve en el <strong>detalle</strong> de la receta (no en el listado). Se recorta sola.</div></div>
         </div>
       </div>
       <div class="field"><label>Preparaciones</label>
@@ -956,7 +976,7 @@ function saveRecipe(){
   const tags=[...new Set([...document.querySelectorAll('.tagpick .chip.on')].map(b=>b.textContent.trim()).concat(($("#fTagNew").value||'').split(',').map(s=>s.trim()).filter(Boolean)))];
   const data={name,cat:tags,servings:parseInt($("#fServ").value)||1,time:parseInt($("#fTime").value)||0,diff:$("#fDiff").value,cost:parseInt(document.querySelector('.costpick button.on')?.dataset.c)||1,yt:$("#fYt").value.trim(),preps};
   const src=$("#fSrc").value.trim(); if(src)data.src=src;
-  data.emoji=($("#fEmoji").value||"").trim()||"🍽️";
+  data.emoji=(formState.editId?(recipes.find(x=>x.id===formState.editId)||{}).emoji:null)||"🍽️";
   if(formState.photo)data.photo=formState.photo;
   if(formState.editId){const r=recipes.find(x=>x.id===formState.editId);Object.assign(r,data);if(!src)delete r.src;persist();toast("✓ Cambios guardados");go('detail',r)}
   else{const r={id:'r'+(++idSeq),emoji:'🍽️',col:PALETTE[recipes.length%PALETTE.length],log:[],fav:false,wish:false,added:(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1,...data};recipes.push(r);formState.editId=r.id;persist();toast("✓ Receta guardada");go('detail',r)}
