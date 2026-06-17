@@ -222,6 +222,12 @@
   .opc-btn.on{border-color:var(--ink);background:var(--ink);color:var(--paper)}
   .photopick{display:flex;gap:13px;align-items:flex-start}
   .photo-prev{width:104px;height:66px;border-radius:9px;background:var(--paper-2);display:grid;place-items:center;font-size:24px;flex-shrink:0;overflow:hidden;border:1px solid var(--ink);background-size:cover;background-position:center}
+  .filerow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:5px}
+  .filebtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ink);background:var(--surface);border-radius:9px;padding:10px 15px;font-family:var(--mono);font-weight:500;font-size:.8rem;cursor:pointer;transition:.14s;white-space:nowrap}
+  .filebtn:hover{background:var(--paper-2)}
+  .filename{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+  .filex{font-family:var(--mono);font-size:.72rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:5px 8px;border-radius:6px;flex-shrink:0}
+  .filex:hover{background:rgba(242,92,31,.12)}
   .photopick input[type=file]{font-size:.84rem;color:var(--ink-soft)}
   .prep-edit{border:1px solid var(--ink);border-radius:11px;padding:14px;margin-bottom:12px;background:var(--surface)}
   .prep-edit-head{display:flex;gap:8px;margin-bottom:4px}
@@ -913,12 +919,13 @@ function rmPrep(b){b.closest('.prep-edit').remove();updateRmPrep()}
 function updateRmPrep(){const bl=document.querySelectorAll('.prep-edit');bl.forEach(x=>{x.querySelector('.rm-prep').style.display=bl.length>1?'grid':'none'})}
 function rmRow(b){b.parentElement.remove()}
 let _drag=null;
-function dragStart(e,h){e.preventDefault();const row=h.closest('.dyn-row');_drag={row,cont:row.parentElement,pid:e.pointerId};row.classList.add('dragging');try{h.setPointerCapture(e.pointerId)}catch(_){}h.onpointermove=ev=>dragMove(ev);h.onpointerup=ev=>dragEnd(ev,h);h.onpointercancel=ev=>dragEnd(ev,h)}
+function dragStart(e,h){e.preventDefault();const row=h.closest('.dyn-row');if(!row)return;_drag={row,cont:row.parentElement};row.classList.add('dragging');document.addEventListener('pointermove',dragMove,{passive:false});document.addEventListener('pointerup',dragEnd);document.addEventListener('pointercancel',dragEnd)}
 function dragMove(e){if(!_drag)return;e.preventDefault();const y=e.clientY;const rows=[..._drag.cont.querySelectorAll(':scope > .dyn-row')].filter(r=>r!==_drag.row);let before=null;for(const r of rows){const b=r.getBoundingClientRect();if(y<b.top+b.height/2){before=r;break}}if(before)_drag.cont.insertBefore(_drag.row,before);else _drag.cont.appendChild(_drag.row)}
-function dragEnd(e,h){if(!_drag)return;_drag.row.classList.remove('dragging');try{h.releasePointerCapture(e.pointerId)}catch(_){}h.onpointermove=h.onpointerup=h.onpointercancel=null;_drag=null}
+function dragEnd(){if(!_drag)return;_drag.row.classList.remove('dragging');document.removeEventListener('pointermove',dragMove);document.removeEventListener('pointerup',dragEnd);document.removeEventListener('pointercancel',dragEnd);_drag=null}
 function rowKey(e,input,type){if(e.key==='Enter'){e.preventDefault();const row=input.closest('.dyn-row');row.insertAdjacentHTML('afterend',type==='ing'?ingRowHTML():stepRowHTML());const nx=row.nextElementSibling;if(nx){const ni=nx.querySelector('input');if(ni)ni.focus()}}}
 function pickCost(b){b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on")}
-function previewPhoto(inp){const f=inp.files&&inp.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const img=new Image();img.onload=()=>{const max=1000;let w=img.width,h=img.height;if(w>max||h>max){const k=Math.min(max/w,max/h);w=Math.round(w*k);h=Math.round(h*k)}const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const data=cv.toDataURL('image/jpeg',0.82);formState.photo=data;const p=$("#photoPrev");p.textContent="";p.style.backgroundImage=`url('${data}')`};img.src=rd.result};rd.readAsDataURL(f)}
+function previewPhoto(inp){const f=inp.files&&inp.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{const img=new Image();img.onload=()=>{const max=1000;let w=img.width,h=img.height;if(w>max||h>max){const k=Math.min(max/w,max/h);w=Math.round(w*k);h=Math.round(h*k)}const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);const data=cv.toDataURL('image/jpeg',0.82);formState.photo=data;const p=$("#photoPrev");if(p){p.textContent="";p.style.backgroundImage=`url('${data}')`}const nm=$("#photoName");if(nm)nm.textContent=f.name.length>26?f.name.slice(0,24)+'…':f.name;const cl=$("#photoClear");if(cl)cl.style.display=''};img.src=rd.result};rd.readAsDataURL(f)}
+function clearPhoto(){formState.photo=null;const p=$("#photoPrev");if(p){p.style.backgroundImage="";p.textContent="📷"}const nm=$("#photoName");if(nm)nm.textContent="Sin foto";const cl=$("#photoClear");if(cl)cl.style.display="none";const inp=$("#photoIn");if(inp)inp.value=""}
 const UNITS={g:'g',gr:'g',grs:'g',gramo:'g',gramos:'g',kg:'kg',kgs:'kg',kilo:'kg',kilos:'kg',kilogramo:'kg',kilogramos:'kg',mg:'mg',ml:'ml',mililitro:'ml',mililitros:'ml',cl:'cl',l:'l',litro:'l',litros:'l',cda:'cda',cdas:'cda',cucharada:'cda',cucharadas:'cda',cdta:'cdta',cdtas:'cdta',cucharadita:'cdta',cucharaditas:'cdta',cucharadilla:'cdta',cucharadillas:'cdta',cucharilla:'cdta',cucharillas:'cdta',taza:'taza',tazas:'tazas',vaso:'vaso',vasos:'vasos',diente:'diente',dientes:'dientes',pizca:'pizca',pizcas:'pizcas','puñado':'puñado','puñados':'puñados',punado:'puñado',punados:'puñados',lata:'lata',latas:'latas',bote:'bote',botes:'botes',sobre:'sobre',sobres:'sobres',chorro:'chorro',chorros:'chorros',loncha:'loncha',lonchas:'lonchas',rodaja:'rodaja',rodajas:'rodajas',hoja:'hoja',hojas:'hojas',rama:'rama',ramas:'ramas',ramita:'ramita',ramitas:'ramitas',unidad:'ud',unidades:'ud',ud:'ud',uds:'ud'};
 function parseIng(txt){const t=txt.trim();const m=t.match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);if(!m)return{q:null,u:'',n:t};const q=parseFloat(m[1].replace(',','.'));const rest=(m[2]||'').trim();if(!rest)return{q,u:'',n:''};const parts=rest.split(/\s+/);const first=parts[0].toLowerCase().replace(/\.$/,'');if(Object.prototype.hasOwnProperty.call(UNITS,first))return{q,u:UNITS[first],n:parts.slice(1).join(' ')};return{q,u:'',n:rest}}
 function renderForm(){
@@ -948,7 +955,14 @@ function renderForm(){
       <div class="field"><label>Foto (opcional)</label>
         <div class="photopick">
           <div class="photo-prev" id="photoPrev" style="${formState.photo?`background-image:url('${formState.photo}')`:''}">${formState.photo?'':'📷'}</div>
-          <div><input type="file" accept="image/*" id="photoIn" onchange="previewPhoto(this)"><div class="hint">Opcional. La foto se ve en el <strong>detalle</strong> de la receta (no en el listado). Se recorta sola.</div></div>
+          <div style="flex:1;min-width:0">
+            <div class="filerow">
+              <label class="filebtn">Elegir foto<input type="file" accept="image/*" id="photoIn" onchange="previewPhoto(this)" hidden></label>
+              <span class="filename" id="photoName">${formState.photo?'Foto cargada':'Sin foto'}</span>
+              <button type="button" class="filex" id="photoClear" onclick="clearPhoto()" ${formState.photo?'':'style="display:none"'}>Quitar</button>
+            </div>
+            <div class="hint">Opcional. La foto se ve en el <strong>detalle</strong> de la receta (no en el listado). Se recorta sola.</div>
+          </div>
         </div>
       </div>
       <div class="field"><label>Preparaciones</label>
