@@ -199,6 +199,24 @@
   .composer-actions .btn{padding:10px 15px}
 
   .form{max-width:680px}
+  .form-bar{display:none}
+  @media(min-width:761px){
+    .form-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;position:sticky;top:54px;z-index:30;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(8px);border:1px solid var(--ink);border-radius:11px;padding:9px 9px 9px 16px;margin-bottom:18px;box-shadow:0 4px 14px rgba(20,25,26,.07)}
+    .form-bar-label{font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+    .form-bar-btns{display:flex;gap:8px}
+    .form-bar .btn{width:auto;padding:9px 18px}
+  }
+  .form-foot{display:flex;gap:10px;margin-top:6px}
+  .form-foot .btn{flex:1}
+  .shop-add{display:flex;gap:9px;margin-bottom:18px}
+  .shop-add input{flex:1;font-family:var(--sans);font-size:.95rem;padding:11px 13px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink)}
+  .shop-add input:focus{outline:none;border-color:var(--ink)}
+  .shop-add .btn{width:auto;padding:11px 18px}
+  .taglist-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 12px}
+  .tagsort-btn{font-family:var(--mono);font-size:.74rem;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:8px 12px;cursor:pointer;transition:.14s;flex-shrink:0}
+  .tagsort-btn:hover{border-color:var(--ink)}
+  .tagrow{padding-left:4px}
+  .tagrow.dragging{opacity:.96;box-shadow:0 10px 26px rgba(20,25,26,.18);position:relative;z-index:5}
   .field{margin-bottom:17px}
   .field label{display:block;font-family:var(--mono);font-weight:500;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px}
   .field input,.field textarea,.field select{width:100%;border:1px solid var(--ink);background:var(--surface);border-radius:9px;padding:12px 13px;outline:none;transition:.16s}
@@ -538,7 +556,7 @@ const DB={
   load(){if(!this.ok)return null;try{const r=localStorage.getItem('lapiko_v1');return r?JSON.parse(r):null}catch(e){return null}},
   save(o){if(!this.ok)return;try{localStorage.setItem('lapiko_v1',JSON.stringify(o))}catch(e){}}
 };
-function persist(){DB.save({recipes,shopping,logSeq,idSeq});if(Cloud.on)Cloud.sync()}
+function persist(){DB.save({recipes,shopping,logSeq,idSeq,tagOrder:state.tagOrder});if(Cloud.on)Cloud.sync()}
 function normRecipe(r,i){
   if(!r||typeof r!=='object')return;
   if(!Array.isArray(r.cat))r.cat=Array.isArray(r.tags)?r.tags.slice():[];
@@ -559,6 +577,7 @@ function loadState(){
   if(s&&s.recipes&&s.recipes.length){
     recipes=s.recipes; shopping=s.shopping||[]; logSeq=s.logSeq||logSeq; idSeq=s.idSeq||idSeq;
     recipes.forEach((r,i)=>normRecipe(r,i));
+    if(Array.isArray(s.tagOrder))state.tagOrder=s.tagOrder;
   }else{persist()}
 }
 
@@ -572,6 +591,7 @@ function fmtDate(iso){const p=iso.split("-");return `${parseInt(p[2])} ${MESES[p
 function allIngs(r){return r.preps.flatMap(p=>p.ings)}
 function flatSteps(r){const o=[];r.preps.forEach((p,pi)=>p.steps.forEach(s=>o.push({prep:p.name,pi,t:s.t,m:s.m})));return o}
 function allCats(){const s=new Set();recipes.forEach(r=>(r.cat||[]).forEach(c=>s.add(c)));return [...s].sort()}
+function orderedCats(){const all=allCats();const ord=(state.tagOrder||[]).filter(t=>all.includes(t));const rest=all.filter(t=>!ord.includes(t));return [...ord,...rest]}
 const CHECK='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>';
 function costStr(c){let o='';for(let i=1;i<=3;i++)o+=`<span class="${i<=c?'on':'off'}">€</span>`;return o}
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900)}
@@ -581,7 +601,7 @@ function setActiveNav(v){
   const c=shopping.length;$("#tabShopLbl").innerHTML='La compra'+(c?`<span class="count-badge">${c}</span>`:'');
 }
 let shopping=[];
-let state={view:"home",filters:[],q:"",col:"all",sort:"recent",recipe:null,servMult:{},checked:{},cookView:"guide"};
+let state={view:"home",filters:[],q:"",col:"all",sort:"recent",recipe:null,servMult:{},checked:{},cookView:"guide",tagOrder:[]};
 
 function go(v,data){
   state.view=v; if(v==="detail"||v==="shared")state.recipe=data;
@@ -616,7 +636,7 @@ function filtered(){
   return arr.map(r=>({r,reason:matchInfo(r,state.q).reason}));
 }
 function renderHome(){
-  const cats=allCats(), active=state.filters.length||state.q||state.col!=='all', list=filtered();
+  const cats=orderedCats(), active=state.filters.length||state.q||state.col!=='all', list=filtered();
   view.innerHTML=`
     <div class="page-head"><div class="kicker">Tu cocina</div><h2>Tus recetas</h2></div>
     <div class="toolbar">
@@ -640,7 +660,7 @@ function renderHome(){
   `;
   setupChips();
 }
-function lpkNum(r){const m=(r.id||'').match(/\d+/);const n=m?parseInt(m[0]):0;return n?String(n).padStart(3,'0'):'—'}
+function lpkNum(r){if(!r||!recipes.includes(r))return '—';const ord=recipes.slice().sort((a,b)=>(a.added||0)-(b.added||0));const i=ord.indexOf(r);return i<0?'—':String(i+1).padStart(3,'0')}
 function filterByTag(c){state.col='all';state.filters=[c];const s=$("#search");if(s)s.value="";state.q="";go('home')}
 function cardHTML(r,i,reason){
   const mark=r.fav?'fav':(r.wish?'wish':'');
@@ -858,7 +878,7 @@ function renderShared(){
 
 /* ---------- MI CUENTA + ETIQUETAS ---------- */
 function renderAccount(){
-  const tags=allCats().map(t=>({t,n:recipes.filter(r=>(r.cat||[]).includes(t)).length}));
+  const tags=orderedCats().map(t=>({t,n:recipes.filter(r=>(r.cat||[]).includes(t)).length}));
   view.innerHTML=`
     <div class="page-head"><div class="kicker">Ajustes</div><h2>Mi cuenta</h2></div>
     <div class="acct-card">
@@ -868,7 +888,8 @@ function renderAccount(){
     </div>
     <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num" style="background:var(--herb)">#</span> Tus etiquetas</h3>
     <p class="notes-intro">Las etiquetas se crean al añadir recetas. Aquí puedes renombrarlas o eliminarlas; el cambio se aplica a todas las recetas que las usan (sin borrar ninguna receta).</p>
-    ${tags.length?`<div class="taglist">${tags.map(o=>`<div class="tagrow"><span class="tr-name">${esc(o.t)}</span><span class="tr-count">${o.n} ${o.n===1?'receta':'recetas'}</span><button class="tr-btn" onclick="renameTag('${esc(o.t)}')" aria-label="Renombrar">✏️</button><button class="tr-btn del" onclick="askDelTag('${esc(o.t)}')" aria-label="Eliminar">✕</button></div>`).join("")}</div>`:`<p class="notes-intro">Aún no hay etiquetas.</p>`}
+    ${tags.length?`<div class="taglist-head"><span class="mini-label" style="margin:0">Arrastra ⠿ para reordenar</span><button class="tagsort-btn" onclick="resetTagOrder()">↓ Orden alfabético</button></div>
+    <div class="taglist" id="taglist">${tags.map(o=>`<div class="tagrow" data-tag="${esc(o.t)}"><span class="drag" onpointerdown="tagDragStart(event,this)" title="Arrastra para reordenar"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg></span><span class="tr-name">${esc(o.t)}</span><span class="tr-count">${o.n} ${o.n===1?'receta':'recetas'}</span><button class="tr-btn" onclick="renameTag('${esc(o.t)}')" aria-label="Renombrar">✏️</button><button class="tr-btn del" onclick="askDelTag('${esc(o.t)}')" aria-label="Eliminar">✕</button></div>`).join("")}</div>`:`<p class="notes-intro">Aún no hay etiquetas.</p>`}
   `;
 }
 function askDelTag(t){const n=recipes.filter(r=>(r.cat||[]).includes(t)).length;openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Eliminar «${esc(t)}»</h3><p class="sheet-sub">Se quitará de ${n} ${n===1?'receta':'recetas'}. No borra ninguna receta, solo la etiqueta.</p><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doDelTag('${esc(t)}')">Eliminar</button></div>`)}
@@ -876,6 +897,12 @@ function doDelTag(t){recipes.forEach(r=>{const i=r.cat.indexOf(t);if(i>=0)r.cat.
 function renameTag(t){openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Renombrar etiqueta</h3><p class="sheet-sub">Se cambiará en todas las recetas que la usan.</p><input id="renInput" class="modal-input" value="${esc(t)}"><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doRenameTag('${esc(t)}')">Guardar</button></div>`);setTimeout(()=>$("#renInput")&&$("#renInput").focus(),60)}
 function doRenameTag(old){const v=$("#renInput").value.trim();if(!v){toast("Pon un nombre");return}recipes.forEach(r=>{const i=r.cat.indexOf(old);if(i>=0){r.cat[i]=v;r.cat=[...new Set(r.cat)]}});const fi=state.filters.indexOf(old);if(fi>=0)state.filters[fi]=v;persist();closeModal();renderAccount();toast("Etiqueta renombrada")}
 
+let _tdrag=null;
+function tagDragStart(e,h){e.preventDefault();const row=h.closest('.tagrow');if(!row)return;_tdrag={row,cont:row.parentElement};row.classList.add('dragging');document.addEventListener('pointermove',tagDragMove,{passive:false});document.addEventListener('pointerup',tagDragEnd);document.addEventListener('pointercancel',tagDragEnd)}
+function tagDragMove(e){if(!_tdrag)return;e.preventDefault();const y=e.clientY;const rows=[..._tdrag.cont.querySelectorAll(':scope > .tagrow')].filter(r=>r!==_tdrag.row);let before=null;for(const r of rows){const b=r.getBoundingClientRect();if(y<b.top+b.height/2){before=r;break}}if(before)_tdrag.cont.insertBefore(_tdrag.row,before);else _tdrag.cont.appendChild(_tdrag.row)}
+function tagDragEnd(){if(!_tdrag)return;_tdrag.row.classList.remove('dragging');document.removeEventListener('pointermove',tagDragMove);document.removeEventListener('pointerup',tagDragEnd);document.removeEventListener('pointercancel',tagDragEnd);_tdrag=null;saveTagOrder()}
+function saveTagOrder(){state.tagOrder=[...document.querySelectorAll('#taglist .tagrow')].map(el=>el.dataset.tag);persist();renderAccount()}
+function resetTagOrder(){state.tagOrder=[];persist();renderAccount();toast('Orden alfabético')}
 /* ---------- LOGIN (Firebase) ---------- */
 function renderLogin(){
   const signup=Cloud.mode==='signup';
@@ -931,11 +958,12 @@ function parseIng(txt){const t=txt.trim();const m=t.match(/^(\d+(?:[.,]\d+)?)\s*
 function renderForm(){
   const dl=[...new Set(recipes.flatMap(r=>allIngs(r).map(i=>i.n)))].sort();
   $("#ingDL").innerHTML=dl.map(n=>`<option value="${esc(n)}">`).join("");
-  const tags=allCats();
+  const tags=orderedCats();
   const r=formState.editId?recipes.find(x=>x.id===formState.editId):null;
   const sel=(r&&r.cost)||1;
   const preps=r?r.preps:[null];
   view.innerHTML=`
+    <div class="form-bar"><span class="form-bar-label">${r?'Editar receta':'Nueva receta'}</span><span class="form-bar-btns"><button class="btn btn-ghost" onclick="cancelForm()">Cancelar</button><button class="btn btn-primary" onclick="saveRecipe()">${r?'Guardar cambios':'Guardar receta'}</button></span></div>
     <div class="page-head"><div class="kicker">${r?'Editar':'Nueva receta'}</div><h2>${r?esc(r.name):'Añadir receta'}</h2><p>Rellena lo que quieras: lo único imprescindible es el nombre.</p></div>
     <div class="form">
       <div class="field"><label>Nombre</label><input id="fName" placeholder="Ej. Lentejas de la abuela" value="${r?esc(r.name):''}"></div>
@@ -971,11 +999,12 @@ function renderForm(){
         <div class="hint">💡 Una sola para recetas normales. Usa varias para platos con partes (masa + relleno, plato + salsa…). «opc» marca ingredientes o pasos opcionales.</div>
       </div>
       <div class="field"><label>Enlace de YouTube (opcional)</label><input id="fYt" placeholder="https://youtube.com/…" value="${r&&r.yt?esc(r.yt):''}"></div>
-      <button class="btn btn-primary btn-block" onclick="saveRecipe()">${r?'Guardar cambios':'Guardar receta'}</button>
+      <div class="form-foot"><button class="btn btn-ghost" onclick="cancelForm()">Cancelar</button><button class="btn btn-primary" onclick="saveRecipe()">${r?'Guardar cambios':'Guardar receta'}</button></div>
       ${r?`<button class="btn btn-ghost btn-block" style="margin-top:10px;color:var(--accent)" onclick="askDelRecipe('${r.id}')">Eliminar receta</button>`:''}
     </div>`;
   updateRmPrep();
 }
+function cancelForm(){const r=formState.editId?recipes.find(x=>x.id===formState.editId):null;if(r)go('detail',r);else go('home')}
 function saveRecipe(){
   if(formState.saving)return;
   const name=$("#fName").value.trim(); if(!name){toast("Ponle un nombre a la receta");window.scrollTo(0,0);return}
@@ -992,7 +1021,7 @@ function saveRecipe(){
   const data={name,cat:tags,servings:parseInt($("#fServ").value)||1,time:parseInt($("#fTime").value)||0,diff:$("#fDiff").value,cost:parseInt(document.querySelector('.costpick button.on')?.dataset.c)||1,yt:$("#fYt").value.trim(),preps};
   const src=$("#fSrc").value.trim(); if(src)data.src=src;
   data.emoji=(formState.editId?(recipes.find(x=>x.id===formState.editId)||{}).emoji:null)||"🍽️";
-  if(formState.photo)data.photo=formState.photo;
+  data.photo=formState.photo||"";
   if(formState.editId){const r=recipes.find(x=>x.id===formState.editId);Object.assign(r,data);if(!src)delete r.src;persist();toast("✓ Cambios guardados");go('detail',r)}
   else{const r={id:'r'+(++idSeq),emoji:'🍽️',col:PALETTE[recipes.length%PALETTE.length],log:[],fav:false,wish:false,added:(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1,...data};recipes.push(r);formState.editId=r.id;persist();toast("✓ Receta guardada");go('detail',r)}
   formState.saving=false;
@@ -1003,11 +1032,13 @@ function doDelRecipe(id){recipes=recipes.filter(x=>x.id!==id);if(Cloud.on)Cloud.
 /* ---------- COMPRA ---------- */
 function renderShop(){
   view.innerHTML=`<div class="page-head"><div class="kicker">Despensa</div><h2>La compra</h2></div>
+    <div class="shop-add"><input id="shopIn" placeholder="Añadir a la lista…" onkeydown="if(event.key==='Enter')addShopItem()"><button class="btn btn-primary" onclick="addShopItem()">Añadir</button></div>
     ${shopping.length?`<ul class="shop">${shopping.map((s,i)=>`<li class="${s.done?'done':''}" onclick="toggleShop(${i})"><span class="box">${CHECK}</span><span>${esc(s.n)}</span></li>`).join("")}</ul>
       <div class="ing-actions" style="margin-top:18px"><button class="btn btn-primary" onclick="shareShop()">↗ Enviar lista</button><button class="btn btn-ghost" onclick="copyShop()">⧉ Copiar</button><button class="btn btn-ghost" onclick="clearShop()">🗑 Vaciar</button></div>`:
       `<div class="empty"><div class="e">🛒</div><p>Tu lista está vacía.<br>Abre una receta y pulsa <strong>＋ A la compra</strong>.</p></div>`}`;
 }
 function toggleShop(i){shopping[i].done=!shopping[i].done;persist();renderShop()}
+function addShopItem(){const inp=$("#shopIn");if(!inp)return;const v=inp.value.trim();if(!v)return;if(!shopping.some(x=>x.n===v))shopping.push({n:v,done:false});persist();renderShop();const ni=$("#shopIn");if(ni)ni.focus()}
 function copyShop(){navigator.clipboard?.writeText(shopping.map(s=>"• "+s.n).join("\n")).then(()=>toast("✓ Lista copiada"))}
 function shareShop(){const txt="Lista de la compra\n\n"+shopping.map(s=>"• "+s.n).join("\n");if(navigator.share){navigator.share({title:"Lista de la compra",text:txt}).catch(()=>{})}else{navigator.clipboard?.writeText(txt);toast("✓ Lista copiada (sin menú de compartir aquí)")}}
 function clearShop(){shopping=[];persist();setActiveNav("shop");renderShop();toast("Lista vaciada")}
@@ -1122,11 +1153,11 @@ const Cloud={
       this.gotRec=true;
       arr.forEach((r,i)=>normRecipe(r,i));
       recipes=arr;
-      DB.save({recipes,shopping,logSeq,idSeq});
+      DB.save({recipes,shopping,logSeq,idSeq,tagOrder:state.tagOrder});
       refreshCurrent();
     },err=>console.warn('rec snap',err)));
     this.unsub.push(onSnapshot(metaRef,d=>{
-      if(d.exists()){const m=d.data();if(Array.isArray(m.shopping))shopping=m.shopping;if(m.logSeq)logSeq=m.logSeq;if(m.idSeq)idSeq=m.idSeq;DB.save({recipes,shopping,logSeq,idSeq});refreshCurrent()}
+      if(d.exists()){const m=d.data();if(Array.isArray(m.shopping))shopping=m.shopping;if(m.logSeq)logSeq=m.logSeq;if(m.idSeq)idSeq=m.idSeq;if(Array.isArray(m.tagOrder))state.tagOrder=m.tagOrder;DB.save({recipes,shopping,logSeq,idSeq,tagOrder:state.tagOrder});refreshCurrent()}
     },err=>console.warn('meta snap',err)));
   },
   detach(){this.unsub.forEach(u=>{try{u()}catch(e){}});this.unsub=[]},
@@ -1136,7 +1167,7 @@ const Cloud={
     this.syncing=true;
     try{
       const {doc,setDoc,writeBatch}=this.fb;
-      await setDoc(doc(this.db,'users',this.uid,'app','meta'),{shopping,logSeq,idSeq});
+      await setDoc(doc(this.db,'users',this.uid,'app','meta'),{shopping,logSeq,idSeq,tagOrder:state.tagOrder});
       const batch=writeBatch(this.db);
       recipes.forEach(r=>batch.set(doc(this.db,'users',this.uid,'recipes',r.id),JSON.parse(JSON.stringify(r))));
       await batch.commit();
