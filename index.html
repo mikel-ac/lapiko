@@ -199,13 +199,14 @@
   .composer-actions .btn{padding:10px 15px}
 
   .form{max-width:680px}
-  .form-bar{display:none}
-  @media(min-width:761px){
-    .form-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;position:sticky;top:54px;z-index:30;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(8px);border:1px solid var(--ink);border-radius:11px;padding:9px 9px 9px 16px;margin-bottom:18px;box-shadow:0 4px 14px rgba(20,25,26,.07)}
-    .form-bar-label{font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
-    .form-bar-btns{display:flex;gap:8px}
-    .form-bar .btn{width:auto;padding:9px 18px}
-  }
+  .form-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:52px;z-index:30;background:color-mix(in srgb,var(--paper) 93%,transparent);backdrop-filter:blur(8px);border:1px solid var(--ink);border-radius:11px;padding:9px 9px 9px 14px;margin-bottom:16px;box-shadow:0 4px 14px rgba(20,25,26,.07)}
+  .form-bar-label{font-family:var(--mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .form-bar-btns{display:flex;gap:8px;flex-shrink:0}
+  .form-bar .btn{width:auto;padding:9px 16px}
+  .form-bar.editing{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent),0 4px 14px rgba(242,92,31,.10)}
+  .form-bar.editing .form-bar-label{color:var(--accent)}
+  .edit-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:7px;flex-shrink:0}
+  @media(min-width:761px){.form-bar{top:54px;padding:9px 10px 9px 16px;gap:14px}}
   .form-foot{display:flex;gap:10px;margin-top:6px}
   .form-foot .btn{flex:1}
   .shop-add{display:flex;gap:9px;margin-bottom:18px}
@@ -550,13 +551,13 @@ recipes.forEach((r,i)=>{r.col=r.col||PALETTE[i%PALETTE.length];r.log=r.log||[];r
   g("r3").log=[{id:"l4",date:"2026-04-20",text:"Cebolla bien pochada y poco cuajada por dentro = perfecta."}];
   g("r7").fav=true; g("r1").fav=true; g("r2").wish=true; g("r6").wish=true;
 })();
-let logSeq=20, idSeq=100;
+let logSeq=20, idSeq=100, lpkSeq=0;
 const DB={
   ok:(()=>{try{const k='_lk';localStorage.setItem(k,'1');localStorage.removeItem(k);return true}catch(e){return false}})(),
   load(){if(!this.ok)return null;try{const r=localStorage.getItem('lapiko_v1');return r?JSON.parse(r):null}catch(e){return null}},
   save(o){if(!this.ok)return;try{localStorage.setItem('lapiko_v1',JSON.stringify(o))}catch(e){}}
 };
-function persist(){DB.save({recipes,shopping,logSeq,idSeq,tagOrder:state.tagOrder});if(Cloud.on)Cloud.sync()}
+function persist(){DB.save({recipes,shopping,logSeq,idSeq,lpkSeq,tagOrder:state.tagOrder});if(Cloud.on)Cloud.sync()}
 function normRecipe(r,i){
   if(!r||typeof r!=='object')return;
   if(!Array.isArray(r.cat))r.cat=Array.isArray(r.tags)?r.tags.slice():[];
@@ -572,13 +573,16 @@ function normRecipe(r,i){
   if(typeof r.time!=='number')r.time=+r.time||0;
   if(r.name==null)r.name="";
 }
+function ensureLpk(){let max=0;recipes.forEach(r=>{if(typeof r.lpk==='number'&&r.lpk>max)max=r.lpk});if(max>lpkSeq)lpkSeq=max;recipes.filter(r=>typeof r.lpk!=='number').sort((a,b)=>(a.added||0)-(b.added||0)).forEach(r=>{r.lpk=++lpkSeq})}
 function loadState(){
   const s=DB.load();
   if(s&&s.recipes&&s.recipes.length){
-    recipes=s.recipes; shopping=s.shopping||[]; logSeq=s.logSeq||logSeq; idSeq=s.idSeq||idSeq;
+    recipes=s.recipes; shopping=s.shopping||[]; logSeq=s.logSeq||logSeq; idSeq=s.idSeq||idSeq; lpkSeq=s.lpkSeq||lpkSeq;
     recipes.forEach((r,i)=>normRecipe(r,i));
     if(Array.isArray(s.tagOrder))state.tagOrder=s.tagOrder;
-  }else{persist()}
+    ensureLpk();
+  }
+  persist();
 }
 
 const $=s=>document.querySelector(s);
@@ -660,7 +664,7 @@ function renderHome(){
   `;
   setupChips();
 }
-function lpkNum(r){if(!r||!recipes.includes(r))return '—';const ord=recipes.slice().sort((a,b)=>(a.added||0)-(b.added||0));const i=ord.indexOf(r);return i<0?'—':String(i+1).padStart(3,'0')}
+function lpkNum(r){return (r&&typeof r.lpk==='number')?String(r.lpk).padStart(3,'0'):'—'}
 function filterByTag(c){state.col='all';state.filters=[c];const s=$("#search");if(s)s.value="";state.q="";go('home')}
 function cardHTML(r,i,reason){
   const mark=r.fav?'fav':(r.wish?'wish':'');
@@ -847,7 +851,7 @@ function shareData(r){return {name:r.name,emoji:r.emoji,cat:(Array.isArray(r.cat
 function encodeRecipe(r){try{return btoa(unescape(encodeURIComponent(JSON.stringify(shareData(r)))))}catch(e){return ""}}
 function shareUrl(r){return location.origin+location.pathname+"#r="+encodeRecipe(r)}
 function copyLink(){const u=shareUrl(state.recipe);if(navigator.clipboard){navigator.clipboard.writeText(u).then(()=>toast("🔗 Enlace copiado"),()=>toast("🔗 Copia el enlace de la barra"))}else toast("🔗 "+u)}
-function addSharedToCookbook(){const r=state.recipe;const c=JSON.parse(JSON.stringify(shareData(r)));c.id="r"+(++idSeq);c.log=[];c.fav=false;c.wish=false;c.col=c.col||PALETTE[recipes.length%PALETTE.length];c.emoji=c.emoji||"🍽️";c.added=(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1;normRecipe(c,recipes.length);recipes.push(c);persist();history.replaceState(null,"",location.pathname);toast("📖 Receta agregada a tu recetario");openRecipe(c.id)}
+function addSharedToCookbook(){const r=state.recipe;const c=JSON.parse(JSON.stringify(shareData(r)));c.id="r"+(++idSeq);c.log=[];c.fav=false;c.wish=false;c.col=c.col||PALETTE[recipes.length%PALETTE.length];c.emoji=c.emoji||"🍽️";c.added=(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1;normRecipe(c,recipes.length);c.lpk=++lpkSeq;recipes.push(c);persist();history.replaceState(null,"",location.pathname);toast("📖 Receta agregada a tu recetario");openRecipe(c.id)}
 function handleRoute(){const h=location.hash;if(h.indexOf("#r=")===0){try{const json=decodeURIComponent(escape(atob(h.slice(3))));const r=JSON.parse(json);if(!Array.isArray(r.cat))r.cat=Array.isArray(r.tags)?r.tags:[];if('tags' in r)delete r.tags;if(!Array.isArray(r.preps))r.preps=[];r.id="shared";r.log=[];r.fav=false;r.wish=false;r.emoji=r.emoji||"🍽️";r.col=r.col||PALETTE[0];state.recipe=r;setActiveNav("home");state.view="shared";renderShared();return}catch(e){}}go("home")}
 function shareWhatsApp(){window.open("https://wa.me/?text="+encodeURIComponent(recipeText(state.recipe)),"_blank");closeModal()}
 
@@ -963,7 +967,7 @@ function renderForm(){
   const sel=(r&&r.cost)||1;
   const preps=r?r.preps:[null];
   view.innerHTML=`
-    <div class="form-bar"><span class="form-bar-label">${r?'Editar receta':'Nueva receta'}</span><span class="form-bar-btns"><button class="btn btn-ghost" onclick="cancelForm()">Cancelar</button><button class="btn btn-primary" onclick="saveRecipe()">${r?'Guardar cambios':'Guardar receta'}</button></span></div>
+    <div class="form-bar ${r?'editing':''}"><span class="form-bar-label">${r?'<span class="edit-dot"></span>Editando':'Nueva receta'}</span><span class="form-bar-btns"><button class="btn btn-ghost" onclick="cancelForm()">Cancelar</button><button class="btn btn-primary" onclick="saveRecipe()">Guardar</button></span></div>
     <div class="page-head"><div class="kicker">${r?'Editar':'Nueva receta'}</div><h2>${r?esc(r.name):'Añadir receta'}</h2><p>Rellena lo que quieras: lo único imprescindible es el nombre.</p></div>
     <div class="form">
       <div class="field"><label>Nombre</label><input id="fName" placeholder="Ej. Lentejas de la abuela" value="${r?esc(r.name):''}"></div>
@@ -1023,7 +1027,7 @@ function saveRecipe(){
   data.emoji=(formState.editId?(recipes.find(x=>x.id===formState.editId)||{}).emoji:null)||"🍽️";
   data.photo=formState.photo||"";
   if(formState.editId){const r=recipes.find(x=>x.id===formState.editId);Object.assign(r,data);if(!src)delete r.src;persist();toast("✓ Cambios guardados");go('detail',r)}
-  else{const r={id:'r'+(++idSeq),emoji:'🍽️',col:PALETTE[recipes.length%PALETTE.length],log:[],fav:false,wish:false,added:(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1,...data};recipes.push(r);formState.editId=r.id;persist();toast("✓ Receta guardada");go('detail',r)}
+  else{const r={id:'r'+(++idSeq),emoji:'🍽️',col:PALETTE[recipes.length%PALETTE.length],log:[],fav:false,wish:false,added:(recipes.length?Math.max(...recipes.map(x=>x.added)):0)+1,lpk:++lpkSeq,...data};recipes.push(r);formState.editId=r.id;persist();toast("✓ Receta guardada");go('detail',r)}
   formState.saving=false;
 }
 function askDelRecipe(id){const r=recipes.find(x=>x.id===id);openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Eliminar receta</h3><p class="sheet-sub">¿Seguro que quieres borrar «${esc(r.name)}»? No se puede deshacer.</p><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doDelRecipe('${id}')">Eliminar</button></div>`)}
@@ -1152,12 +1156,12 @@ const Cloud={
       if(!this.gotRec && arr.length===0 && recipes.length>0){this.gotRec=true;this.sync();return}
       this.gotRec=true;
       arr.forEach((r,i)=>normRecipe(r,i));
-      recipes=arr;
-      DB.save({recipes,shopping,logSeq,idSeq,tagOrder:state.tagOrder});
+      recipes=arr;ensureLpk();
+      DB.save({recipes,shopping,logSeq,idSeq,lpkSeq,tagOrder:state.tagOrder});
       refreshCurrent();
     },err=>console.warn('rec snap',err)));
     this.unsub.push(onSnapshot(metaRef,d=>{
-      if(d.exists()){const m=d.data();if(Array.isArray(m.shopping))shopping=m.shopping;if(m.logSeq)logSeq=m.logSeq;if(m.idSeq)idSeq=m.idSeq;if(Array.isArray(m.tagOrder))state.tagOrder=m.tagOrder;DB.save({recipes,shopping,logSeq,idSeq,tagOrder:state.tagOrder});refreshCurrent()}
+      if(d.exists()){const m=d.data();if(Array.isArray(m.shopping))shopping=m.shopping;if(m.logSeq)logSeq=m.logSeq;if(m.idSeq)idSeq=m.idSeq;if(m.lpkSeq)lpkSeq=m.lpkSeq;if(Array.isArray(m.tagOrder))state.tagOrder=m.tagOrder;DB.save({recipes,shopping,logSeq,idSeq,lpkSeq,tagOrder:state.tagOrder});refreshCurrent()}
     },err=>console.warn('meta snap',err)));
   },
   detach(){this.unsub.forEach(u=>{try{u()}catch(e){}});this.unsub=[]},
@@ -1167,7 +1171,7 @@ const Cloud={
     this.syncing=true;
     try{
       const {doc,setDoc,writeBatch}=this.fb;
-      await setDoc(doc(this.db,'users',this.uid,'app','meta'),{shopping,logSeq,idSeq,tagOrder:state.tagOrder});
+      await setDoc(doc(this.db,'users',this.uid,'app','meta'),{shopping,logSeq,idSeq,lpkSeq,tagOrder:state.tagOrder});
       const batch=writeBatch(this.db);
       recipes.forEach(r=>batch.set(doc(this.db,'users',this.uid,'recipes',r.id),JSON.parse(JSON.stringify(r))));
       await batch.commit();
