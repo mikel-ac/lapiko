@@ -1106,6 +1106,35 @@ function beep(){try{actx=actx||new(window.AudioContext||window.webkitAudioContex
 /* ---------- MODAL GENÉRICO ---------- */
 function openModal(html){$("#modalSheet").innerHTML=html;$("#modalBack").classList.add("show")}
 function closeModal(e){if(!e||e.target===$("#modalBack"))$("#modalBack").classList.remove("show")}
+/* ---------- GESTOS TÁCTILES (deslizar para cerrar / volver) ---------- */
+function setupGestures(){
+  let sx=0,sy=0,st=0,mode=null,scrollEl=null,sheetClose=null;
+  function openOverlay(){
+    const ck=$("#cook"); if(ck&&ck.classList.contains("show"))return {scroll:ck,close:closeCook};
+    const mb=$("#modalBack"); if(mb&&mb.classList.contains("show"))return {scroll:$("#modalSheet"),close:function(){closeModal()}};
+    const sb=$("#sheetBack"); if(sb&&sb.classList.contains("show"))return {scroll:sb.querySelector(".sheet"),close:function(){closeTimers()}};
+    return null;
+  }
+  function inHScroller(el){while(el&&el!==document.body){try{if(el.scrollWidth>el.clientWidth+4){const ox=getComputedStyle(el).overflowX;if(ox==="auto"||ox==="scroll")return true}}catch(_){}el=el.parentElement}return false}
+  document.addEventListener("touchstart",function(e){
+    if(!e.touches||e.touches.length!==1){mode=null;return}
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); mode=null; scrollEl=null; sheetClose=null;
+    const ov=openOverlay();
+    if(ov){mode="sheet";scrollEl=ov.scroll;sheetClose=ov.close;return}
+    if((state.view==="detail"||state.view==="shared") && sx>window.innerWidth*0.55 && (window.innerWidth-sx)>6 && !inHScroller(e.target)){mode="back"}
+  },{passive:true});
+  document.addEventListener("touchend",function(e){
+    if(!mode)return;
+    const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
+    if(mode==="sheet"){
+      if(dy>70 && dy>Math.abs(dx)*1.4 && (!scrollEl||scrollEl.scrollTop<=2) && sheetClose)sheetClose();
+    }else if(mode==="back"){
+      if(dx<-55 && Math.abs(dx)>Math.abs(dy)*1.8 && dt<800)go("home");
+    }
+    mode=null;
+  },{passive:true});
+}
+setupGestures();
 
 /* ---------- FIREBASE (login + sincronización en tiempo real) ---------- */
 const FIREBASE_CONFIG = {
