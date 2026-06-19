@@ -1121,7 +1121,7 @@ function setupGestures(){
     const t=e.touches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); mode=null; scrollEl=null; sheetClose=null;
     const ov=openOverlay();
     if(ov){mode="sheet";scrollEl=ov.scroll;sheetClose=ov.close;return}
-    if((state.view==="detail"||state.view==="shared") && sx>window.innerWidth*0.55 && (window.innerWidth-sx)>6 && !inHScroller(e.target)){mode="back"}
+    if((state.view==="detail"||state.view==="shared") && sx>window.innerWidth*0.5 && !inHScroller(e.target)){mode="back"}
   },{passive:true});
   document.addEventListener("touchend",function(e){
     if(!mode)return;
