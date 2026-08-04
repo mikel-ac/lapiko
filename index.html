@@ -430,6 +430,25 @@
 
   .cook{position:fixed;inset:0;z-index:200;background:var(--ink);color:var(--paper);display:none;flex-direction:column;animation:fade .3s}
   .cook.show{display:flex}
+  .alarm{position:fixed;inset:0;z-index:200;background:var(--ink);color:var(--paper);display:none;padding:26px;
+    padding-bottom:calc(26px + env(safe-area-inset-bottom));animation:alarmIn .18s ease-out}
+  .alarm.show{display:grid;place-items:center}
+  @keyframes alarmIn{from{opacity:0}to{opacity:1}}
+  .alarm-in{width:100%;max-width:420px;text-align:center}
+  .alarm-kicker{display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);font-size:.72rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:7px 15px}
+  .alarm-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:alarmPulse 1s infinite}
+  @keyframes alarmPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.7)}}
+  .alarm-label{font-family:var(--serif);font-weight:700;font-size:1.7rem;letter-spacing:-.02em;line-height:1.2;margin-top:26px;word-break:break-word}
+  .alarm-label:empty{display:none}
+  .alarm-clock{font-family:var(--mono);font-weight:600;font-size:4.6rem;line-height:1;letter-spacing:.02em;margin-top:14px;font-variant-numeric:tabular-nums;animation:alarmBlink 1s infinite}
+  @keyframes alarmBlink{0%,100%{opacity:1}50%{opacity:.45}}
+  .alarm-actions{display:flex;gap:10px;margin-top:38px;flex-wrap:wrap;justify-content:center}
+  .alarm-b{flex:1;min-width:120px;padding:15px 16px}
+  .alarm .btn-ghost{background:transparent;border-color:rgba(237,239,238,.35);color:var(--paper)}
+  .alarm .btn-ghost:hover{background:rgba(237,239,238,.1);border-color:var(--paper)}
+  .alarm-more{font-family:var(--mono);font-size:.72rem;color:rgba(237,239,238,.5);margin-top:22px;letter-spacing:.05em}
+  .alarm-more:empty{display:none}
+  @media(min-width:761px){.alarm-clock{font-size:5.4rem}}
   .cook-top{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.12)}
   .cook-top .ct-title{font-family:var(--mono);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(237,239,238,.75)}
   .cook-top .cook-close{color:var(--paper);width:38px;height:38px;border-radius:8px;display:grid;place-items:center;transition:.16s;flex-shrink:0}
@@ -621,6 +640,19 @@
 </div>
 
 <div class="sheet-backdrop" id="modalBack" onclick="closeModal(event)"><div class="sheet" id="modalSheet"></div></div>
+<div class="alarm" id="alarm" aria-live="assertive">
+  <div class="alarm-in">
+    <div class="alarm-kicker"><span class="alarm-dot"></span><span id="alarmKicker">Temporizador terminado</span></div>
+    <div class="alarm-label" id="alarmLabel"></div>
+    <div class="alarm-clock" id="alarmClock">00:00</div>
+    <div class="alarm-actions">
+      <button class="btn btn-ghost alarm-b" onclick="alarmPlus()">+1 minuto</button>
+      <button class="btn btn-ghost alarm-b" onclick="alarmRepeat()">Repetir</button>
+      <button class="btn btn-primary alarm-b" onclick="alarmStop()">Parar</button>
+    </div>
+    <div class="alarm-more" id="alarmMore"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <datalist id="ingDL"></datalist>
@@ -1378,15 +1410,22 @@ function tRestore(){
       }
     });
     if(timers.some(t=>t.running))ensureTicker();
+    const vencidos=timers.filter(t=>t.fin&&!t.seen);
     renderTimers();updateFab();
+    if(vencidos.length){vencidos.forEach(t=>{t.seen=true;if(!alarmQ.some(x=>x.id===t.id))alarmQ.push(t)});tSave();renderAlarm();startAlarmNoise()}
   }catch(e){}
 }
 function fmtClock(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60,p=n=>String(n).padStart(2,"0");return h?`${h}:${p(m)}:${p(x)}`:`${p(m)}:${p(x)}`}
 function openTimers(){renderTimers();$("#sheetBack").classList.add("show")}
 function closeTimers(e){if(!e||e.target===$("#sheetBack"))$("#sheetBack").classList.remove("show")}
 function ensureTicker(){if(!ticker)ticker=setInterval(tickT,1000)}
-function tickT(){const now=Date.now();timers.forEach(t=>{if(t.running&&t.endAt){const rem=Math.ceil((t.endAt-now)/1000);t.remaining=Math.max(0,rem);if(rem<=0){t.running=false;t.fin=true;t.remaining=0;beep();toast((t.label||"Temporizador")+" — ¡listo!")}}});tSave();renderTimers();updateFab();if(!timers.some(t=>t.running||t.fin)){clearInterval(ticker);ticker=null}}
-function addTimer(sec,label){timers.push({id:++tSeq,label:label||"",total:sec,remaining:sec,running:true,fin:false,endAt:Date.now()+sec*1000});ensureTicker();tSave();renderTimers();updateFab();openTimers()}
+function tickT(){const now=Date.now();if(!timers.some(t=>t.running))keepAwake(false);timers.forEach(t=>{if(t.running&&t.endAt){const rem=Math.ceil((t.endAt-now)/1000);t.remaining=Math.max(0,rem);if(rem<=0){t.running=false;t.fin=true;t.remaining=0;fireAlarm(t)}}});tSave();renderTimers();updateFab();if(!timers.some(t=>t.running||t.fin)){clearInterval(ticker);ticker=null}}
+function primeTimerEnv(){
+  try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();if(actx.state==="suspended")actx.resume()}catch(e){}
+  try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission()}catch(e){}
+  keepAwake(true);
+}
+function addTimer(sec,label){primeTimerEnv();timers.push({id:++tSeq,label:label||"",total:sec,remaining:sec,running:true,fin:false,endAt:Date.now()+sec*1000});ensureTicker();tSave();renderTimers();updateFab();openTimers()}
 function addCustom(){const m=parseInt($("#cMin").value)||0,s=parseInt($("#cSec").value)||0,tot=m*60+s;if(tot<=0){toast("Pon un tiempo");return}addTimer(tot,$("#cLbl").value.trim());$("#cMin").value="";$("#cSec").value="";$("#cLbl").value=""}
 function tToggle(id){const t=timers.find(x=>x.id===id);if(!t)return;if(t.fin){t.remaining=t.total;t.fin=false;t.running=true}else t.running=!t.running;t.endAt=t.running?Date.now()+t.remaining*1000:null;ensureTicker();tSave();renderTimers();updateFab()}
 function tAdd1(id){const t=timers.find(x=>x.id===id);if(t){t.remaining+=60;t.total+=60;t.fin=false;t.running=true;t.endAt=Date.now()+t.remaining*1000;ensureTicker();tSave();renderTimers();updateFab()}}
@@ -1399,6 +1438,61 @@ function fabShouldShow(){
   return state.view==="detail";
 }
 function updateFab(){const fab=$("#fabTimer");if(!fab)return;fab.classList.toggle("hide",!fabShouldShow());const live=$("#fabLive"),fin=timers.some(t=>t.fin),running=timers.filter(t=>t.running);fab.classList.toggle("ring",fin);let badge=fab.querySelector(".fab-badge");if(!timers.length){fab.classList.remove("active");live.textContent="";badge&&badge.remove();return}fab.classList.add("active");const show=fin?timers.find(t=>t.fin):(running.slice().sort((a,b)=>a.remaining-b.remaining)[0]||timers[0]);live.textContent=show.fin?"¡Listo!":fmtClock(show.remaining);if(timers.length>1){if(!badge){badge=document.createElement("span");badge.className="fab-badge";fab.appendChild(badge)}badge.textContent=timers.length}else badge&&badge.remove()}
+let alarmQ=[], alarmLoop=null, wakeLock=null;
+function fireAlarm(t){
+  t.seen=true;
+  if(!alarmQ.some(x=>x.id===t.id))alarmQ.push(t);
+  renderAlarm(); startAlarmNoise(); notify(t);
+}
+function renderAlarm(){
+  const el=$("#alarm"); if(!el)return;
+  if(!alarmQ.length){el.classList.remove("show");return}
+  const t=alarmQ[0];
+  $("#alarmLabel").textContent=t.label||"";
+  $("#alarmKicker").textContent=t.label?"Temporizador terminado":"Tiempo cumplido";
+  $("#alarmClock").textContent=fmtClock(0);
+  $("#alarmMore").textContent=alarmQ.length>1?`Y ${alarmQ.length-1} más esperando`:"";
+  el.classList.add("show");
+}
+function startAlarmNoise(){
+  if(alarmLoop)return;
+  const ring=()=>{beep();try{if(navigator.vibrate)navigator.vibrate([350,180,350])}catch(e){}};
+  ring(); alarmLoop=setInterval(ring,1600);
+}
+function stopAlarmNoise(){
+  if(alarmLoop){clearInterval(alarmLoop);alarmLoop=null}
+  try{if(navigator.vibrate)navigator.vibrate(0)}catch(e){}
+}
+function alarmNext(){
+  alarmQ.shift();
+  if(alarmQ.length){renderAlarm()}
+  else{stopAlarmNoise();$("#alarm").classList.remove("show")}
+  tSave();renderTimers();updateFab();
+}
+function alarmStop(){const t=alarmQ[0];if(t)timers=timers.filter(x=>x.id!==t.id);alarmNext()}
+function alarmPlus(){const t=alarmQ[0];if(t){t.fin=false;t.running=true;t.remaining=60;t.total+=60;t.endAt=Date.now()+60000;ensureTicker()}alarmNext();toast("+1 minuto")}
+function alarmRepeat(){const t=alarmQ[0];if(t){t.fin=false;t.running=true;t.remaining=t.total;t.endAt=Date.now()+t.total*1000;ensureTicker()}alarmNext();toast("Temporizador reiniciado")}
+function notify(t){
+  try{
+    if(!("Notification" in window)||Notification.permission!=="granted")return;
+    if(document.visibilityState==="visible")return;
+    new Notification("Lapiko · tiempo cumplido",{body:t.label||"Tu temporizador ha terminado",icon:"icon-192.png",tag:"lapiko-timer-"+t.id});
+  }catch(e){}
+}
+async function keepAwake(on){
+  try{
+    if(on){ if(!wakeLock&&navigator.wakeLock)wakeLock=await navigator.wakeLock.request("screen"); }
+    else if(wakeLock){await wakeLock.release();wakeLock=null}
+  }catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible"){
+    const now=Date.now();
+    timers.forEach(t=>{if(t.running&&t.endAt&&t.endAt<=now){t.running=false;t.fin=true;t.remaining=0;fireAlarm(t)}});
+    if(timers.some(t=>t.running))keepAwake(true);
+    tSave();renderTimers();updateFab();
+  }
+});
 function beep(){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();let n=0;const pulse=()=>{const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.frequency.value=880;g.gain.setValueAtTime(.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(.28,actx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+.35);o.start();o.stop(actx.currentTime+.37);if(++n<3)setTimeout(pulse,430)};pulse()}catch(e){}}
 
 /* ---------- MODAL GENÉRICO ---------- */
