@@ -9,7 +9,9 @@
 <meta property="og:site_name" content="Lapiko">
 <meta property="og:title" content="Lapiko · Recetario">
 <meta property="og:description" content="Ábrelo para ver la receta completa y guardarla en tu recetario.">
-<meta property="og:image" content="https://mikel-ac.github.io/lapiko/icon-512.png">
+<meta property="og:image" content="https://mikel-ac.github.io/lapiko/icon-192.png">
+<meta property="og:image:width" content="192">
+<meta property="og:image:height" content="192">
 <meta property="og:url" content="https://mikel-ac.github.io/lapiko/">
 <meta name="twitter:card" content="summary">
 <link rel="manifest" href="manifest.webmanifest">
@@ -763,6 +765,7 @@ let shopping=[];
 let state={view:"home",filters:[],q:"",col:"all",sort:"recent",recipe:null,servMult:{},checked:{},cookView:"guide",tagOrder:[]};
 
 function go(v,data){
+  if(v!=="shared")state.fromShare=false;
   state.view=v; if(v==="detail"||v==="shared")state.recipe=data;
   setActiveNav(["detail","shared"].includes(v)?"home":v);
   window.scrollTo(0,0);
@@ -1019,7 +1022,8 @@ function shareRecipe(){
     <div class="share-row"><button class="btn btn-ghost" onclick="copyLink()">${ICO.copy} Copiar enlace</button><button class="btn btn-primary" onclick="shareWhatsApp()">Enviar por WhatsApp</button></div>
     <p class="share-note">El enlace abre la receta sin necesidad de registrarse. Quien lo reciba podrá guardarla en su recetario (creando una cuenta gratis si no la tiene).</p>`);
 }
-function openShared(){closeModal();go("shared",state.recipe)}
+function openShared(){state.fromShare=true;closeModal();go("shared",state.recipe)}
+function backToShare(){const r=state.recipe;state.fromShare=false;go("detail",r);shareRecipe()}
 function shareData(r){
   const d={oid:r.oid||null,name:r.name,cat:(Array.isArray(r.cat)?r.cat:(Array.isArray(r.tags)?r.tags:[])),servings:r.servings,time:r.time,active:r.active,diff:r.diff,cost:r.cost,yt:r.yt,src:r.src,preps:r.preps};
   Object.keys(d).forEach(k=>{const v=d[k];if(v===null||v===undefined||v===""||(Array.isArray(v)&&!v.length))delete d[k]});
@@ -1067,7 +1071,13 @@ async function shareUrlBest(r){
   }
   return shareUrlLong(r);
 }
-async function copyLink(){const u=await shareUrlBest(state.recipe);if(navigator.clipboard){navigator.clipboard.writeText(u).then(()=>toast("Enlace copiado"),()=>toast("Copia el enlace de la barra"))}else toast(u)}
+async function copyLink(){
+  const r=state.recipe;
+  const u=await shareUrlBest(r);
+  const txt=`${r.name}${r.src?" · receta de "+r.src:""}\n${u}`;
+  if(navigator.clipboard){navigator.clipboard.writeText(txt).then(()=>toast("Copiado: receta y enlace"),()=>toast("Copia el enlace de la barra"))}
+  else toast(u);
+}
 function pendingSet(r){try{sessionStorage.setItem("lapiko_pending",JSON.stringify(r))}catch(e){}}
 function pendingGet(){try{const v=sessionStorage.getItem("lapiko_pending");return v?JSON.parse(v):null}catch(e){return null}}
 function pendingClear(){try{sessionStorage.removeItem("lapiko_pending")}catch(e){}}
@@ -1155,7 +1165,7 @@ async function shareWhatsApp(){
 
 function renderShared(){
   const r=state.recipe,mult=1,own=r.id!=='shared';
-  const backAct=own?`go('detail',state.recipe)`:`history.replaceState(null,'',location.pathname);go('home')`;
+  const backAct=own?(state.fromShare?`backToShare()`:`go('detail',state.recipe)`):`history.replaceState(null,'',location.pathname);go('home')`;
   view.innerHTML=`
     <button class="back" onclick="${backAct}">← ${own?'Volver (vista previa)':'Inicio'}</button>
     <div class="sharebar">
