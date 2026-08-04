@@ -6,8 +6,8 @@
 <title>Lapiko</title>
 <meta name="theme-color" content="#EDEFEE">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -218,6 +218,14 @@
   .shop-add input:focus{outline:none;border-color:var(--ink)}
   .shop-add .btn{width:auto;padding:11px 18px}
   .taglist-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 12px}
+  .danger-link{color:var(--accent);border-color:var(--line-strong);margin-top:9px}
+  .danger-link:hover{border-color:var(--accent);background:rgba(242,92,31,.06)}
+  .btn-danger{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn-danger:hover{background:#c0410f;border-color:#c0410f}
+  .del-confirm{margin:14px 0 4px}
+  .del-confirm label{display:block;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px}
+  .del-confirm input{width:100%;font-family:var(--mono);font-size:.95rem;letter-spacing:.12em;padding:12px 13px;border:1px solid var(--line-strong);border-radius:9px;background:var(--paper);color:var(--ink);text-transform:uppercase}
+  .del-confirm input:focus{outline:none;border-color:var(--accent);background:var(--surface)}
   .tagsort-btn{font-family:var(--mono);font-size:.74rem;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:8px 12px;cursor:pointer;transition:.14s;flex-shrink:0}
   .tagsort-btn:hover{border-color:var(--ink)}
   .tagrow{padding-left:4px}
@@ -469,6 +477,7 @@
 
   .fab-timer{position:fixed;right:18px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:60;display:flex;align-items:center;gap:9px;background:var(--ink);color:var(--paper);border-radius:12px;height:54px;padding:0 17px;box-shadow:0 10px 26px rgba(0,0,0,.3);font-family:var(--mono);font-weight:500;transition:.2s}
   .fab-timer:hover{transform:translateY(-2px)}
+  .fab-timer.hide{display:none}
   .fab-timer .fab-ic{display:grid;place-items:center;line-height:0}
   .fab-timer .fab-ic svg{width:21px;height:21px}
   .fab-timer .fab-live{font-variant-numeric:tabular-nums;font-size:1rem;display:none}
@@ -708,6 +717,7 @@ function go(v,data){
   state.view=v; if(v==="detail"||v==="shared")state.recipe=data;
   setActiveNav(["detail","shared"].includes(v)?"home":v);
   window.scrollTo(0,0);
+  setTimeout(updateFab,0);
   ({home:renderHome,detail:renderDetail,add:renderForm,shop:renderShop,shared:renderShared,login:renderLogin,account:renderAccount})[v]();
 }
 
@@ -961,10 +971,35 @@ function shareRecipe(){
     <p class="share-note">El enlace abre la receta sin necesidad de registrarse. Quien lo reciba podrá guardarla en su recetario (creando una cuenta gratis si no la tiene). WhatsApp la envía en texto plano.</p>`);
 }
 function openShared(){closeModal();go("shared",state.recipe)}
-function shareData(r){return {oid:r.oid||null,name:r.name,cat:(Array.isArray(r.cat)?r.cat:(Array.isArray(r.tags)?r.tags:[])),servings:r.servings,time:r.time,active:r.active,diff:r.diff,cost:r.cost,yt:r.yt,src:r.src,photo:r.photo||"",preps:r.preps}}
+function shareData(r){
+  const d={oid:r.oid||null,name:r.name,cat:(Array.isArray(r.cat)?r.cat:(Array.isArray(r.tags)?r.tags:[])),servings:r.servings,time:r.time,active:r.active,diff:r.diff,cost:r.cost,yt:r.yt,src:r.src,preps:r.preps};
+  Object.keys(d).forEach(k=>{const v=d[k];if(v===null||v===undefined||v===""||(Array.isArray(v)&&!v.length))delete d[k]});
+  return d;
+}
+const B64U={
+  enc(bytes){let s="";bytes.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")},
+  dec(str){str=str.replace(/-/g,"+").replace(/_/g,"/");while(str.length%4)str+="=";const bin=atob(str),out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
+};
+async function encodeRecipeC(r){
+  const json=JSON.stringify(shareData(r));
+  if(typeof CompressionStream==="undefined")return null;
+  try{
+    const cs=new CompressionStream("deflate-raw");
+    const w=cs.writable.getWriter();w.write(new TextEncoder().encode(json));w.close();
+    const buf=await new Response(cs.readable).arrayBuffer();
+    return B64U.enc(new Uint8Array(buf));
+  }catch(e){return null}
+}
+async function decodeRecipeC(code){
+  const ds=new DecompressionStream("deflate-raw");
+  const w=ds.writable.getWriter();w.write(B64U.dec(code));w.close();
+  const buf=await new Response(ds.readable).arrayBuffer();
+  return JSON.parse(new TextDecoder().decode(buf));
+}
 function encodeRecipe(r){try{return btoa(unescape(encodeURIComponent(JSON.stringify(shareData(r)))))}catch(e){return ""}}
 function shareUrl(r){return location.origin+location.pathname+"#r="+encodeRecipe(r)}
-function copyLink(){const u=shareUrl(state.recipe);if(navigator.clipboard){navigator.clipboard.writeText(u).then(()=>toast("Enlace copiado"),()=>toast("Copia el enlace de la barra"))}else toast(u)}
+async function shareUrlBest(r){const c=await encodeRecipeC(r);return c?location.origin+location.pathname+"#c="+c:shareUrl(r)}
+async function copyLink(){const u=await shareUrlBest(state.recipe);if(navigator.clipboard){navigator.clipboard.writeText(u).then(()=>toast("Enlace copiado"),()=>toast("Copia el enlace de la barra"))}else toast(u)}
 function pendingSet(r){try{sessionStorage.setItem("lapiko_pending",JSON.stringify(r))}catch(e){}}
 function pendingGet(){try{const v=sessionStorage.getItem("lapiko_pending");return v?JSON.parse(v):null}catch(e){return null}}
 function pendingClear(){try{sessionStorage.removeItem("lapiko_pending")}catch(e){}}
@@ -1010,7 +1045,21 @@ function applyPending(){
   const o=pendingGet(); if(!o)return false;
   pendingClear(); importShared(o); return true;
 }
-function handleRoute(){const h=location.hash;if(h.indexOf("#r=")===0){try{const json=decodeURIComponent(escape(atob(h.slice(3))));const r=JSON.parse(json);if(!Array.isArray(r.cat))r.cat=Array.isArray(r.tags)?r.tags:[];if('tags' in r)delete r.tags;if(!Array.isArray(r.preps))r.preps=[];r.id="shared";r.log=[];r.fav=false;r.wish=false;state.recipe=r;setActiveNav("home");state.view="shared";renderShared();return}catch(e){}}go("home")}
+async function handleRoute(){
+  const h=location.hash;
+  const isC=h.indexOf("#c=")===0, isR=h.indexOf("#r=")===0;
+  if(isC||isR){
+    try{
+      const r=isC?await decodeRecipeC(h.slice(3)):JSON.parse(decodeURIComponent(escape(atob(h.slice(3)))));
+      if(!Array.isArray(r.cat))r.cat=Array.isArray(r.tags)?r.tags:[];
+      if('tags' in r)delete r.tags;
+      if(!Array.isArray(r.preps))r.preps=[];
+      r.id="shared";r.log=[];r.fav=false;r.wish=false;
+      state.recipe=r;setActiveNav("home");state.view="shared";renderShared();return;
+    }catch(e){}
+  }
+  go("home");
+}
 function shareWhatsApp(){window.open("https://wa.me/?text="+encodeURIComponent(recipeText(state.recipe)),"_blank");closeModal()}
 
 function renderShared(){
@@ -1054,6 +1103,7 @@ function renderAccount(){
       <div class="acct-av"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
       <div class="acct-info"><div class="acct-n">${Cloud.on?'Sesión iniciada':'Solo en este dispositivo'}</div><div class="acct-e">${Cloud.on?esc(Cloud.email||''):'Sin sincronizar — inicia sesión para sincronizar'}</div></div>
       <button class="btn btn-ghost" onclick="${Cloud.on?'Cloud.signOut()':"go('login')"}">${Cloud.on?'Cerrar sesión':'Iniciar sesión'}</button>
+      ${Cloud.on?`<button class="btn btn-ghost danger-link" onclick="askDeleteAccount()">Eliminar mi cuenta</button>`:''}
     </div>
     <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num">01</span> Tus etiquetas</h3>
     <p class="notes-intro">Las etiquetas se crean al añadir recetas. Aquí puedes renombrarlas o eliminarlas; el cambio se aplica a todas las recetas que las usan (sin borrar ninguna receta).</p>
@@ -1062,9 +1112,7 @@ function renderAccount(){
     <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num">02</span> Copia de seguridad</h3>
     <p class="notes-intro">Descarga todo tu recetario en un archivo. Guárdalo donde quieras: es tu copia por si algo va mal con la cuenta.</p>
     <button class="btn btn-ghost btn-block" onclick="exportBackup()">${ICO.send} Descargar mis recetas</button>
-    <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num">03</span> Numeración</h3>
-    <p class="notes-intro">Cada receta tiene un número de catálogo permanente (LPK). Puedes reiniciarlo una sola vez para que tus recetas actuales empiecen en 001, por orden de antigüedad. Después vuelve a ser fijo: si borras una, su número no se reutiliza.</p>
-    <button class="btn btn-ghost btn-block" onclick="askResetLpk()">Reiniciar numeración desde 001</button>
+    
   `;
 }
 function askDelTag(t){const n=recipes.filter(r=>(r.cat||[]).includes(t)).length;openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Eliminar «${esc(t)}»</h3><p class="sheet-sub">Se quitará de ${n} ${n===1?'receta':'recetas'}. No borra ninguna receta, solo la etiqueta.</p><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doDelTag('${esc(t)}')">Eliminar</button></div>`)}
@@ -1084,13 +1132,34 @@ function exportBackup(){
     toast("Copia descargada · "+recipes.length+" recetas");
   }catch(e){toast("No se pudo generar la copia")}
 }
-function askResetLpk(){openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Reiniciar numeración</h3><p class="sheet-sub">Tus ${recipes.length} recetas se renumerarán desde 001 por orden de antigüedad. A partir de ahí cada número queda fijo (si borras una, su número no se reutiliza).</p><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doResetLpk()">Reiniciar</button></div>`)}
-function doResetLpk(){const ord=recipes.slice().sort((a,b)=>(a.added||0)-(b.added||0));ord.forEach((r,i)=>{r.lpk=i+1});lpkSeq=ord.length;persist();closeModal();toast("Numeración reiniciada");renderAccount()}
 let _tdrag=null;
 function tagDragStart(e,h){e.preventDefault();const row=h.closest('.tagrow');if(!row)return;_tdrag={row,cont:row.parentElement};row.classList.add('dragging');document.addEventListener('pointermove',tagDragMove,{passive:false});document.addEventListener('pointerup',tagDragEnd);document.addEventListener('pointercancel',tagDragEnd)}
 function tagDragMove(e){if(!_tdrag)return;e.preventDefault();const y=e.clientY;const rows=[..._tdrag.cont.querySelectorAll(':scope > .tagrow')].filter(r=>r!==_tdrag.row);let before=null;for(const r of rows){const b=r.getBoundingClientRect();if(y<b.top+b.height/2){before=r;break}}if(before)_tdrag.cont.insertBefore(_tdrag.row,before);else _tdrag.cont.appendChild(_tdrag.row)}
 function tagDragEnd(){if(!_tdrag)return;_tdrag.row.classList.remove('dragging');document.removeEventListener('pointermove',tagDragMove);document.removeEventListener('pointerup',tagDragEnd);document.removeEventListener('pointercancel',tagDragEnd);_tdrag=null;saveTagOrder()}
 function saveTagOrder(){state.tagOrder=[...document.querySelectorAll('#taglist .tagrow')].map(el=>el.dataset.tag);persist();renderAccount()}
+function askDeleteAccount(){
+  openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Eliminar tu cuenta</h3>
+    <p class="sheet-sub">Se borrarán <strong>${recipes.length} recetas</strong>, tu lista de la compra y tus ajustes, en este dispositivo y en la nube. Esta acción no se puede deshacer.</p>
+    <div class="del-confirm">
+      <label>Escribe <strong>ELIMINAR</strong> para confirmar</label>
+      <input id="delWord" placeholder="ELIMINAR" autocomplete="off">
+    </div>
+    <p class="share-note">Si quieres conservar tus recetas, descarga antes una copia de seguridad desde Ajustes.</p>
+    <div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-danger" onclick="doDeleteAccount()">Eliminar definitivamente</button></div>`);
+}
+async function doDeleteAccount(){
+  const w=(($("#delWord")||{}).value||"").trim().toUpperCase();
+  if(w!=="ELIMINAR"){toast("Escribe ELIMINAR para confirmar");return}
+  const res=await Cloud.deleteAccount();
+  if(res===true){
+    try{localStorage.removeItem('lapiko_v1');localStorage.removeItem('lapiko_timers');sessionStorage.removeItem('lapiko_pending')}catch(e){}
+    recipes=[];shopping=[];timers=[];state.tagOrder=[];lpkSeq=0;
+    closeModal();toast("Cuenta eliminada");
+  }else if(res==="recent"){
+    closeModal();toast("Por seguridad, vuelve a iniciar sesión y repite la operación");
+    setTimeout(()=>Cloud.signOut(),1600);
+  }else{toast("No se pudo eliminar. Inténtalo de nuevo")}
+}
 function resetTagOrder(){state.tagOrder=[];persist();renderAccount();toast('Orden alfabético')}
 /* ---------- LOGIN (Firebase) ---------- */
 function renderLogin(){
@@ -1256,7 +1325,7 @@ function clearShop(){shopping=[];persist();setActiveNav("shop");renderShop();toa
 /* ---------- MODO COCINA ---------- */
 let cookIdx=0,timer=null,timeLeft=0,running=false;
 function startCook(){cookIdx=0;$("#cook").classList.add("show");document.body.style.overflow="hidden";renderCookPreps();setCookView('guide')}
-function closeCook(){$("#cook").classList.remove("show");document.body.style.overflow="";stopTimer()}
+function closeCook(){$("#cook").classList.remove("show");updateFab();document.body.style.overflow="";stopTimer()}
 function setCookView(v){
   state.cookView=v;
   $("#tgGuide").classList.toggle("on",v==='guide');$("#tgList").classList.toggle("on",v==='list');
@@ -1295,18 +1364,41 @@ function stopTimer(){running=false;clearInterval(timer);$("#cookTimer").classLis
 
 /* ---------- TEMPORIZADORES ---------- */
 let timers=[],tSeq=0,ticker=null,actx=null;
+function tSave(){try{localStorage.setItem("lapiko_timers",JSON.stringify({timers,tSeq}))}catch(e){}}
+function tRestore(){
+  try{
+    const d=JSON.parse(localStorage.getItem("lapiko_timers")||"null");
+    if(!d||!Array.isArray(d.timers))return;
+    timers=d.timers; tSeq=d.tSeq||0;
+    const now=Date.now();
+    timers.forEach(t=>{
+      if(t.running&&t.endAt){
+        const rem=Math.ceil((t.endAt-now)/1000);
+        if(rem<=0){t.running=false;t.fin=true;t.remaining=0}else t.remaining=rem;
+      }
+    });
+    if(timers.some(t=>t.running))ensureTicker();
+    renderTimers();updateFab();
+  }catch(e){}
+}
 function fmtClock(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60,p=n=>String(n).padStart(2,"0");return h?`${h}:${p(m)}:${p(x)}`:`${p(m)}:${p(x)}`}
 function openTimers(){renderTimers();$("#sheetBack").classList.add("show")}
 function closeTimers(e){if(!e||e.target===$("#sheetBack"))$("#sheetBack").classList.remove("show")}
 function ensureTicker(){if(!ticker)ticker=setInterval(tickT,1000)}
-function tickT(){timers.forEach(t=>{if(t.running&&t.remaining>0){t.remaining--;if(t.remaining===0){t.running=false;t.fin=true;beep();toast((t.label||"Temporizador")+" — ¡listo!")}}});renderTimers();updateFab();if(!timers.some(t=>t.running||t.fin)){clearInterval(ticker);ticker=null}}
-function addTimer(sec,label){timers.push({id:++tSeq,label:label||"",total:sec,remaining:sec,running:true,fin:false});ensureTicker();renderTimers();updateFab();openTimers()}
+function tickT(){const now=Date.now();timers.forEach(t=>{if(t.running&&t.endAt){const rem=Math.ceil((t.endAt-now)/1000);t.remaining=Math.max(0,rem);if(rem<=0){t.running=false;t.fin=true;t.remaining=0;beep();toast((t.label||"Temporizador")+" — ¡listo!")}}});tSave();renderTimers();updateFab();if(!timers.some(t=>t.running||t.fin)){clearInterval(ticker);ticker=null}}
+function addTimer(sec,label){timers.push({id:++tSeq,label:label||"",total:sec,remaining:sec,running:true,fin:false,endAt:Date.now()+sec*1000});ensureTicker();tSave();renderTimers();updateFab();openTimers()}
 function addCustom(){const m=parseInt($("#cMin").value)||0,s=parseInt($("#cSec").value)||0,tot=m*60+s;if(tot<=0){toast("Pon un tiempo");return}addTimer(tot,$("#cLbl").value.trim());$("#cMin").value="";$("#cSec").value="";$("#cLbl").value=""}
-function tToggle(id){const t=timers.find(x=>x.id===id);if(!t)return;if(t.fin){t.remaining=t.total;t.fin=false;t.running=true}else t.running=!t.running;ensureTicker();renderTimers();updateFab()}
-function tAdd1(id){const t=timers.find(x=>x.id===id);if(t){t.remaining+=60;t.total+=60;t.fin=false;t.running=true;ensureTicker();renderTimers();updateFab()}}
-function tDel(id){timers=timers.filter(x=>x.id!==id);renderTimers();updateFab()}
+function tToggle(id){const t=timers.find(x=>x.id===id);if(!t)return;if(t.fin){t.remaining=t.total;t.fin=false;t.running=true}else t.running=!t.running;t.endAt=t.running?Date.now()+t.remaining*1000:null;ensureTicker();tSave();renderTimers();updateFab()}
+function tAdd1(id){const t=timers.find(x=>x.id===id);if(t){t.remaining+=60;t.total+=60;t.fin=false;t.running=true;t.endAt=Date.now()+t.remaining*1000;ensureTicker();tSave();renderTimers();updateFab()}}
+function tDel(id){timers=timers.filter(x=>x.id!==id);tSave();renderTimers();updateFab()}
 function renderTimers(){const el=$("#timerList");if(!el)return;if(!timers.length){el.innerHTML='<div class="tempty">No hay temporizadores en marcha.<br>Añade uno con los botones de arriba.</div>';return}el.innerHTML=timers.map(t=>`<div class="titem ${t.fin?'fin':''}"><div class="tclock">${t.fin?'¡Listo!':fmtClock(t.remaining)}</div><div class="tinfo"><div class="tlbl">${esc(t.label||'Temporizador')}</div><div class="tsub">${fmtClock(t.total)} en total</div></div><div class="tbtns"><button onclick="tAdd1(${t.id})" title="+1 min">+1′</button><button onclick="tToggle(${t.id})">${t.fin?'↺':(t.running?'⏸':'▶')}</button><button onclick="tDel(${t.id})">✕</button></div></div>`).join("")}
-function updateFab(){const fab=$("#fabTimer"),live=$("#fabLive"),fin=timers.some(t=>t.fin),running=timers.filter(t=>t.running);fab.classList.toggle("ring",fin);let badge=fab.querySelector(".fab-badge");if(!timers.length){fab.classList.remove("active");live.textContent="";badge&&badge.remove();return}fab.classList.add("active");const show=fin?timers.find(t=>t.fin):(running.slice().sort((a,b)=>a.remaining-b.remaining)[0]||timers[0]);live.textContent=show.fin?"¡Listo!":fmtClock(show.remaining);if(timers.length>1){if(!badge){badge=document.createElement("span");badge.className="fab-badge";fab.appendChild(badge)}badge.textContent=timers.length}else badge&&badge.remove()}
+function fabShouldShow(){
+  if(timers.length)return true;
+  const ck=document.getElementById("cook");
+  if(ck&&ck.classList.contains("show"))return true;
+  return state.view==="detail";
+}
+function updateFab(){const fab=$("#fabTimer");if(!fab)return;fab.classList.toggle("hide",!fabShouldShow());const live=$("#fabLive"),fin=timers.some(t=>t.fin),running=timers.filter(t=>t.running);fab.classList.toggle("ring",fin);let badge=fab.querySelector(".fab-badge");if(!timers.length){fab.classList.remove("active");live.textContent="";badge&&badge.remove();return}fab.classList.add("active");const show=fin?timers.find(t=>t.fin):(running.slice().sort((a,b)=>a.remaining-b.remaining)[0]||timers[0]);live.textContent=show.fin?"¡Listo!":fmtClock(show.remaining);if(timers.length>1){if(!badge){badge=document.createElement("span");badge.className="fab-badge";fab.appendChild(badge)}badge.textContent=timers.length}else badge&&badge.remove()}
 function beep(){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();let n=0;const pulse=()=>{const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.frequency.value=880;g.gain.setValueAtTime(.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(.28,actx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+.35);o.start();o.stop(actx.currentTime+.37);if(++n<3)setTimeout(pulse,430)};pulse()}catch(e){}}
 
 /* ---------- MODAL GENÉRICO ---------- */
@@ -1435,6 +1527,21 @@ const Cloud={
   async signupEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||p.length<6){toast('Email y contraseña (mínimo 6 caracteres)');return}try{await this.fb.createUserWithEmailAndPassword(this.auth,e,p);toast('Cuenta creada')}catch(err){toast(this.errMsg(err))}},
   async loginGoogle(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}try{const prov=new this.fb.GoogleAuthProvider();await this.fb.signInWithRedirect(this.auth,prov)}catch(err){toast(this.errMsg(err))}},
   async signOut(){try{await this.fb.signOut(this.auth)}catch(e){}},
+  async deleteAccount(){
+    if(!this.on||!this.ready)return false;
+    try{
+      const {collection,getDocs,deleteDoc,doc,deleteUser}=this.fb;
+      this.detach();
+      const snap=await getDocs(collection(this.db,'users',this.uid,'recipes'));
+      for(const d of snap.docs){try{await deleteDoc(d.ref)}catch(e){}}
+      try{await deleteDoc(doc(this.db,'users',this.uid,'app','meta'))}catch(e){}
+      await deleteUser(this.auth.currentUser);
+      return true;
+    }catch(e){
+      if(e&&/requires-recent-login/.test(e.code||""))return "recent";
+      console.warn('deleteAccount',e);return false;
+    }
+  },
   setMode(m){this.mode=m;renderLogin();setTimeout(()=>{const el=$("#logEmail");if(el)el.focus()},40)},
   errMsg(err){const c=(err&&err.code)||'';if(c.indexOf('invalid-credential')>-1||c.indexOf('wrong-password')>-1||c.indexOf('user-not-found')>-1)return 'Email o contraseña incorrectos';if(c.indexOf('email-already-in-use')>-1)return 'Ese email ya tiene cuenta; pulsa Entrar';if(c.indexOf('invalid-email')>-1)return 'Email no válido';if(c.indexOf('weak-password')>-1)return 'Contraseña demasiado corta (mín. 6)';if(c.indexOf('network')>-1)return 'Sin conexión con el servidor';if(c.indexOf('popup')>-1||c.indexOf('redirect')>-1)return 'No se pudo abrir Google; reintenta';return 'No se pudo iniciar sesión'}
 };
@@ -1451,7 +1558,8 @@ function refreshCurrent(){
 }
 
 (function(){const el=document.getElementById("fabIc");if(el)el.innerHTML=ICO.clock})();
-loadState();handleRoute();Cloud.init(FIREBASE_CONFIG);
+loadState();
+tRestore();handleRoute();Cloud.init(FIREBASE_CONFIG);
 if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
 </script>
 </body>
