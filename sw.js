@@ -1,7 +1,7 @@
 /* LAPIKO service worker
    Sube el número de VERSION cada vez que cambies index.html u otros archivos,
    para que la app se actualice en los dispositivos. */
-const VERSION = 'lapiko-v31';
+const VERSION = 'lapiko-v32';
 const ASSETS = ['index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

@@ -470,14 +470,14 @@
   @media(min-width:761px){.alarm-clock{font-size:5.4rem}}
   .cook-top{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.12)}
   .cook-top .ct-title{font-family:var(--mono);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(237,239,238,.75)}
-  .cook-timer{display:flex;align-items:center;gap:8px;height:38px;padding:0 11px;border-radius:9px;border:1px solid rgba(237,239,238,.28);background:transparent;color:var(--paper);flex-shrink:0;transition:.16s;cursor:pointer}
-  .cook-timer:hover{background:rgba(237,239,238,.12);border-color:var(--paper)}
-  .cook-timer .ctf-ic{display:grid;place-items:center;line-height:0}
-  .cook-timer .ctf-ic svg{width:19px;height:19px}
-  .cook-timer .ctf-live{font-family:var(--mono);font-weight:600;font-size:.8rem;font-variant-numeric:tabular-nums;letter-spacing:.02em}
-  .cook-timer .ctf-live:empty{display:none}
-  .cook-timer.run{border-color:var(--accent);color:var(--accent)}
-  .cook-timer.fin{background:var(--accent);border-color:var(--accent);color:#fff;animation:fabPulse 1s infinite}
+  .cook-clockbtn{display:flex;align-items:center;gap:8px;height:38px;padding:0 11px;border-radius:9px;border:1px solid rgba(237,239,238,.28);background:transparent;color:var(--paper);flex-shrink:0;transition:.16s;cursor:pointer}
+  .cook-clockbtn:hover{background:rgba(237,239,238,.12);border-color:var(--paper)}
+  .cook-clockbtn .ctf-ic{display:grid;place-items:center;line-height:0}
+  .cook-clockbtn .ctf-ic svg{width:19px;height:19px}
+  .cook-clockbtn .ctf-live{font-family:var(--mono);font-weight:600;font-size:.8rem;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .cook-clockbtn .ctf-live:empty{display:none}
+  .cook-clockbtn.run{border-color:var(--accent);color:var(--accent)}
+  .cook-clockbtn.fin{background:var(--accent);border-color:var(--accent);color:#fff;animation:fabPulse 1s infinite}
   .cook-top .cook-close{color:var(--paper);width:38px;height:38px;border-radius:8px;display:grid;place-items:center;transition:.16s;flex-shrink:0}
   .cook-top .cook-close:hover{background:rgba(255,255,255,.12)}
   .cook-toggle{display:flex;border:1px solid rgba(255,255,255,.18);border-radius:8px;overflow:hidden;flex-shrink:0}
@@ -628,7 +628,7 @@
       <button id="tgGuide" class="on" onclick="setCookView('guide')">Paso a paso</button>
       <button id="tgList" onclick="setCookView('list')">Lista</button>
     </div>
-    <button class="cook-timer" id="cookTimerFab" onclick="openTimers()" aria-label="Temporizadores"><span class="ctf-ic" id="cookFabIc"></span><span class="ctf-live" id="cookFabLive"></span></button>
+    <button class="cook-clockbtn" id="cookTimerFab" onclick="openTimers()" aria-label="Temporizadores"><span class="ctf-ic" id="cookFabIc"></span><span class="ctf-live" id="cookFabLive"></span></button>
     <button class="cook-close" onclick="closeCook()" aria-label="Cerrar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <div class="cook-preps" id="cookPreps"></div>
