@@ -1037,7 +1037,26 @@ async function decodeRecipeC(code){
 }
 function encodeRecipe(r){try{return btoa(unescape(encodeURIComponent(JSON.stringify(shareData(r)))))}catch(e){return ""}}
 function shareUrl(r){return location.origin+location.pathname+"#r="+encodeRecipe(r)}
-async function shareUrlBest(r){const c=await encodeRecipeC(r);return c?location.origin+location.pathname+"#c="+c:shareUrl(r)}
+function randCode(n){
+  const A="abcdefghijkmnpqrstuvwxyz23456789";let out="";
+  try{const b=new Uint8Array(n);crypto.getRandomValues(b);for(let i=0;i<n;i++)out+=A[b[i]%A.length]}
+  catch(e){for(let i=0;i<n;i++)out+=A[Math.floor(Math.random()*A.length)]}
+  return out;
+}
+async function shareUrlLong(r){const c=await encodeRecipeC(r);return c?location.origin+location.pathname+"#c="+c:shareUrl(r)}
+async function shareUrlBest(r){
+  if(Cloud.on&&Cloud.ready&&r&&r.id!=="shared"){
+    try{
+      const code=r.share||randCode(9);
+      const ok=await Cloud.putShare(code,JSON.stringify(shareData(r)));
+      if(ok){
+        if(r.share!==code){r.share=code;persist()}
+        return location.origin+location.pathname+"#s="+code;
+      }
+    }catch(e){}
+  }
+  return shareUrlLong(r);
+}
 async function copyLink(){const u=await shareUrlBest(state.recipe);if(navigator.clipboard){navigator.clipboard.writeText(u).then(()=>toast("Enlace copiado"),()=>toast("Copia el enlace de la barra"))}else toast(u)}
 function pendingSet(r){try{sessionStorage.setItem("lapiko_pending",JSON.stringify(r))}catch(e){}}
 function pendingGet(){try{const v=sessionStorage.getItem("lapiko_pending");return v?JSON.parse(v):null}catch(e){return null}}
@@ -1086,6 +1105,23 @@ function applyPending(){
 }
 async function handleRoute(){
   const h=location.hash;
+  if(h.indexOf("#s=")===0){
+    const code=h.slice(3).replace(/[^a-z0-9]/gi,"");
+    view.innerHTML='<div class="empty"><p>Abriendo la receta…</p></div>';
+    state.view="shared";setActiveNav("home");
+    const json=await Cloud.getShare(code);
+    if(json){
+      try{
+        const r=JSON.parse(json);
+        if(!Array.isArray(r.cat))r.cat=[];
+        if(!Array.isArray(r.preps))r.preps=[];
+        r.id="shared";r.log=[];r.fav=false;r.wish=false;
+        state.recipe=r;renderShared();return;
+      }catch(e){}
+    }
+    view.innerHTML='<div class="empty"><p>Este enlace ya no está disponible.<br>Pídele a quien te lo envió que vuelva a compartirlo.</p><button class="btn btn-ghost" style="margin-top:14px" onclick="history.replaceState(null,\'\',location.pathname);go(\'home\')">Ir a Lapiko</button></div>';
+    return;
+  }
   const isC=h.indexOf("#c=")===0, isR=h.indexOf("#r=")===0;
   if(isC||isR){
     try{
@@ -1548,7 +1584,7 @@ const FIREBASE_CONFIG = {
 };
 const FB_VER='11.0.2';
 const Cloud={
-  ready:false, on:false, mode:'signin', app:null, auth:null, db:null, uid:null, email:null, fb:{}, unsub:[], gotRec:false, syncing:false, queued:false,
+  ready:false, _readyQ:[], on:false, mode:'signin', app:null, auth:null, db:null, uid:null, email:null, fb:{}, unsub:[], gotRec:false, syncing:false, queued:false,
   async init(cfg){
     if(!cfg||!cfg.apiKey)return;
     try{
@@ -1559,10 +1595,10 @@ const Cloud={
       this.app=a.initializeApp(cfg);
       this.auth=au.getAuth(this.app);
       this.db=fs.getFirestore(this.app);
-      this.ready=true;
+      this.ready=true; this._readyQ.splice(0).forEach(f=>f(true));
       try{await au.getRedirectResult(this.auth)}catch(e){}
       au.onAuthStateChanged(this.auth,u=>this.onAuth(u));
-    }catch(e){console.warn('Firebase no disponible; sigo en modo local.',e)}
+    }catch(e){console.warn('Firebase no disponible; sigo en modo local.',e);this._readyQ.splice(0).forEach(f=>f(false))}
   },
   async onAuth(u){
     if(u){
@@ -1629,12 +1665,37 @@ const Cloud={
   async loginEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||!p){toast('Pon tu email y contraseña');return}try{await this.fb.signInWithEmailAndPassword(this.auth,e,p)}catch(err){toast(this.errMsg(err))}},
   async signupEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||p.length<6){toast('Email y contraseña (mínimo 6 caracteres)');return}try{await this.fb.createUserWithEmailAndPassword(this.auth,e,p);toast('Cuenta creada')}catch(err){toast(this.errMsg(err))}},
   async loginGoogle(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}try{const prov=new this.fb.GoogleAuthProvider();await this.fb.signInWithRedirect(this.auth,prov)}catch(err){toast(this.errMsg(err))}},
+  whenReady(ms){
+    if(this.ready)return Promise.resolve(true);
+    return new Promise(res=>{
+      let done=false;
+      const f=v=>{if(!done){done=true;res(v)}};
+      this._readyQ.push(f);
+      setTimeout(()=>f(this.ready),ms||6000);
+    });
+  },
+  async putShare(code,json){
+    if(!this.on||!this.ready)return false;
+    try{const {doc,setDoc}=this.fb;await setDoc(doc(this.db,'shares',code),{uid:this.uid,r:json,at:Date.now()});return true}
+    catch(e){console.warn('putShare',e);return false}
+  },
+  async getShare(code){
+    await this.whenReady();
+    if(!this.ready)return null;
+    try{const {doc,getDoc}=this.fb;const d=await getDoc(doc(this.db,'shares',code));return d.exists()?d.data().r:null}
+    catch(e){console.warn('getShare',e);return null}
+  },
+  async dropShare(code){
+    if(!this.on||!this.ready||!code)return;
+    try{const {doc,deleteDoc}=this.fb;await deleteDoc(doc(this.db,'shares',code))}catch(e){}
+  },
   async signOut(){try{await this.fb.signOut(this.auth)}catch(e){}},
   async deleteAccount(){
     if(!this.on||!this.ready)return false;
     try{
       const {collection,getDocs,deleteDoc,doc,deleteUser}=this.fb;
       this.detach();
+      try{for(const r of recipes){if(r.share)await this.dropShare(r.share)}}catch(e){}
       const snap=await getDocs(collection(this.db,'users',this.uid,'recipes'));
       for(const d of snap.docs){try{await deleteDoc(d.ref)}catch(e){}}
       try{await deleteDoc(doc(this.db,'users',this.uid,'app','meta'))}catch(e){}
