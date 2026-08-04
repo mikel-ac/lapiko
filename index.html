@@ -218,8 +218,9 @@
   .shop-add input:focus{outline:none;border-color:var(--ink)}
   .shop-add .btn{width:auto;padding:11px 18px}
   .taglist-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 12px}
-  .danger-link{color:var(--accent);border-color:var(--line-strong);margin-top:9px}
-  .danger-link:hover{border-color:var(--accent);background:rgba(242,92,31,.06)}
+  .danger-zone{border-top:1px solid var(--line);margin-top:4px;padding-top:14px}
+  .danger-entry{font-family:var(--mono);font-size:.78rem;letter-spacing:.04em;color:var(--ink-soft);background:none;border:none;padding:8px 0;cursor:pointer;border-bottom:1px solid var(--line-strong);transition:.15s}
+  .danger-entry:hover{color:var(--accent);border-bottom-color:var(--accent)}
   .btn-danger{background:var(--accent);border-color:var(--accent);color:#fff}
   .btn-danger:hover{background:#c0410f;border-color:#c0410f}
   .del-confirm{margin:14px 0 4px}
@@ -399,7 +400,13 @@
   .ac-legal{font-family:var(--mono);font-size:.62rem;color:var(--ink-faint);line-height:1.65;margin-top:14px;text-align:center}
 
   .linkbtn{background:none;border:none;color:var(--accent);font-weight:600;font-family:inherit;font-size:inherit;padding:0;cursor:pointer;text-decoration:underline}
-  .acct-card{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--ink);border-radius:var(--radius);padding:14px 15px}
+  .acct-card{display:flex;align-items:center;gap:13px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--ink);border-radius:var(--radius);padding:14px 15px}
+  .acct-card .btn{flex-shrink:0}
+  @media(max-width:520px){
+    .acct-info{flex:1 1 100%;order:2}
+    .acct-card .btn{order:3;width:100%}
+    .acct-e{white-space:normal;word-break:break-all}
+  }
   .acct-av{width:44px;height:44px;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center;font-family:var(--mono);font-weight:600;flex-shrink:0}
   .acct-info{flex:1;min-width:0}
   .acct-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1135,7 +1142,6 @@ function renderAccount(){
       <div class="acct-av"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
       <div class="acct-info"><div class="acct-n">${Cloud.on?'Sesión iniciada':'Solo en este dispositivo'}</div><div class="acct-e">${Cloud.on?esc(Cloud.email||''):'Sin sincronizar — inicia sesión para sincronizar'}</div></div>
       <button class="btn btn-ghost" onclick="${Cloud.on?'Cloud.signOut()':"go('login')"}">${Cloud.on?'Cerrar sesión':'Iniciar sesión'}</button>
-      ${Cloud.on?`<button class="btn btn-ghost danger-link" onclick="askDeleteAccount()">Eliminar mi cuenta</button>`:''}
     </div>
     <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num">01</span> Tus etiquetas</h3>
     <p class="notes-intro">Las etiquetas se crean al añadir recetas. Aquí puedes renombrarlas o eliminarlas; el cambio se aplica a todas las recetas que las usan (sin borrar ninguna receta).</p>
@@ -1144,7 +1150,10 @@ function renderAccount(){
     <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num">02</span> Copia de seguridad</h3>
     <p class="notes-intro">Descarga todo tu recetario en un archivo. Guárdalo donde quieras: es tu copia por si algo va mal con la cuenta.</p>
     <button class="btn btn-ghost btn-block" onclick="exportBackup()">${ICO.send} Descargar mis recetas</button>
-    
+    ${Cloud.on?`
+    <h3 class="sec-h" style="font-size:1.3rem;margin-top:28px"><span class="num">03</span> Eliminar cuenta</h3>
+    <p class="notes-intro">Se borrarán todas tus recetas, tu lista de la compra y tus ajustes, en este dispositivo y en la nube. No se puede deshacer, así que descarga antes tu copia de seguridad.</p>
+    <div class="danger-zone"><button class="danger-entry" onclick="askDeleteAccount()">Eliminar mi cuenta permanentemente</button></div>`:''}
   `;
 }
 function askDelTag(t){const n=recipes.filter(r=>(r.cat||[]).includes(t)).length;openModal(`<div class="sheet-grip"></div><h3 class="sheet-title">Eliminar «${esc(t)}»</h3><p class="sheet-sub">Se quitará de ${n} ${n===1?'receta':'recetas'}. No borra ninguna receta, solo la etiqueta.</p><div class="share-row"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="doDelTag('${esc(t)}')">Eliminar</button></div>`)}
