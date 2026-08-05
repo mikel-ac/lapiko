@@ -408,6 +408,7 @@
   .welcome-note{display:flex;gap:10px;align-items:flex-start;border:1px dashed var(--line-strong);border-radius:9px;padding:11px 13px;margin-top:18px;background:var(--paper)}
   .welcome-note .n{font-family:var(--mono);font-size:.7rem;font-weight:600;color:var(--accent);flex-shrink:0}
   .welcome-note .t{font-size:.82rem;color:var(--ink-soft);line-height:1.5}
+  .ac-forgot{text-align:center;margin-top:12px;font-family:var(--mono);font-size:.72rem}
   .ac-swap{text-align:center;font-family:var(--mono);font-size:.72rem;color:var(--ink-soft);margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
   .ac-legal{font-family:var(--mono);font-size:.62rem;color:var(--ink-faint);line-height:1.65;margin-top:14px;text-align:center}
 
@@ -1302,6 +1303,7 @@ function renderLogin(){
           <div class="ac-field"><label for="logEmail">Email</label><input id="logEmail" type="email" placeholder="tu@email.com" autocomplete="email"></div>
           <div class="ac-field"><label for="logPass">Contraseña</label><input id="logPass" type="password" placeholder="••••••••" autocomplete="${signup?'new-password':'current-password'}" onkeydown="if(event.key==='Enter'){${act}}">${signup?'<div class="ac-hint">Mínimo 6 caracteres</div>':''}</div>
           <button class="btn btn-primary btn-block" onclick="${act}">${signup?(pend?'Crear cuenta y guardar receta':'Crear cuenta'):(pend?'Entrar y guardar receta':'Entrar')}</button>
+          ${signup?'':`<div class="ac-forgot"><button class="linkbtn" onclick="Cloud.resetPass()">¿Has olvidado tu contraseña?</button></div>`}
           <div class="ac-or">o</div>
           <button class="btn btn-block google" onclick="Cloud.loginGoogle()"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="#F25C1F" d="M21.35 11.1h-9.17v2.96h5.27c-.23 1.35-1.6 3.96-5.27 3.96-3.17 0-5.76-2.62-5.76-5.86s2.59-5.86 5.76-5.86c1.8 0 3.01.77 3.7 1.43l2.52-2.43C16.78 3.78 14.7 2.9 12.18 2.9 7.1 2.9 3 7 3 12.06s4.1 9.16 9.18 9.16c5.3 0 8.8-3.72 8.8-8.96 0-.6-.06-1.06-.13-1.16z"/></svg> Continuar con Google</button>
           ${signup?`<div class="welcome-note"><span class="n">+7</span><span class="t">Empezarás con siete recetas de muestra, para que no arranques con el recetario vacío.</span></div>`:''}
@@ -1704,6 +1706,16 @@ const Cloud={
     if(this.queued){this.queued=false;this.sync()}
   },
   async del(id){if(!this.on||!this.ready)return;try{const {doc,deleteDoc}=this.fb;await deleteDoc(doc(this.db,'users',this.uid,'recipes',id))}catch(e){console.warn('del',e)}},
+  async resetPass(){
+    if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}
+    const e=(($("#logEmail")||{}).value||'').trim();
+    if(!e||!/.+@.+\..+/.test(e)){toast('Escribe tu email arriba y vuelve a pulsar');const el=$("#logEmail");if(el)el.focus();return}
+    try{
+      try{this.auth.languageCode='es'}catch(_){}
+      await this.fb.sendPasswordResetEmail(this.auth,e);
+    }catch(err){console.warn('reset',err)}
+    toast('Si esa dirección tiene cuenta, te llegará un correo para cambiarla');
+  },
   async loginEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||!p){toast('Pon tu email y contraseña');return}try{await this.fb.signInWithEmailAndPassword(this.auth,e,p)}catch(err){toast(this.errMsg(err))}},
   async signupEmail(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}const e=(($("#logEmail")||{}).value||'').trim(),p=(($("#logPass")||{}).value||'');if(!e||p.length<6){toast('Email y contraseña (mínimo 6 caracteres)');return}try{await this.fb.createUserWithEmailAndPassword(this.auth,e,p);toast('Cuenta creada')}catch(err){toast(this.errMsg(err))}},
   async loginGoogle(){if(!this.ready){toast('Conectando con el servidor… prueba en un segundo');return}try{const prov=new this.fb.GoogleAuthProvider();await this.fb.signInWithRedirect(this.auth,prov)}catch(err){toast(this.errMsg(err))}},
